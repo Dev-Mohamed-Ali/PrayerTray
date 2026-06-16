@@ -1,0 +1,16 @@
+# Build output
+bin/
+obj/
+publish/
+
+# IDE / user
+.vs/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Runtime config (lives in %APPDATA%, never committed)
+config.json
