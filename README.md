@@ -1,8 +1,14 @@
 # PrayerTray
 
-Lightweight Windows 11 prayer-times app. A pill **on the taskbar** showing the next prayer + live
-countdown; click for the full day. Native WinForms + raw Win32, **zero NuGet dependencies**, times
-computed **offline** (PrayTimes.org algorithm). ~10 MB private RAM (vs Awqat-Salaat's WinUI 3, ~60–150 MB).
+Lightweight Windows **10 (1809+) & 11** prayer-times app. A pill **on the taskbar** showing the next
+prayer + live countdown; click for the full day. Native WinForms + raw Win32, **zero NuGet
+dependencies**, times computed **offline** (PrayTimes.org algorithm). ~10 MB private RAM (vs
+Awqat-Salaat's WinUI 3, ~60–150 MB).
+
+> Built and tested on Windows 11. Windows 10 (1809+) is supported by the same overlay approach
+> (`Shell_TrayWnd`/`TrayNotifyWnd` exist there; the Win11-only DWM rounded-corner hint on the popup
+> just no-ops) but is **not yet hardware-tested** — please report issues. A vertical taskbar is not
+> handled on either OS.
 
 ## Use
 
@@ -35,6 +41,19 @@ side/offset in **Settings**.
 Right-click → **Settings**: city label, latitude/longitude, method (MWL / ISNA / Egypt / Makkah /
 Karachi), Asr juristic (Standard / Hanafi), 12/24h clock, widget side (Left/Right) + gap.
 Saved to `%APPDATA%\PrayerTray\config.json`. Defaults to Makkah until changed.
+
+**Set location — two ways** (both auto-run/appear on first launch):
+
+- **Detect** (one click): tries the **Windows location service** first (accurate; needs *Settings ▸
+  Privacy ▸ Location* on), falls back to **approximate IP-geolocation**, then fills lat/lng/city and
+  the country-appropriate method for you to **confirm or edit before saving**.
+- **Pick on map**: **Open Maps** launches Google Maps in your browser (pre-centered on your rough IP
+  area). Right-click your exact spot, click the lat/lng to copy them, then **paste** into the box and
+  hit **Set** — most accurate, since you pin the point yourself. The box also accepts a pasted map
+  URL or a `maps.app.goo.gl` share link.
+
+Either way, the network is touched only while setting location — prayer times are always computed
+offline.
 
 Timezone auto-detected from Windows (handles DST). High-latitude summer (e.g. London) uses the
 angle-based night-portion fallback for Fajr/Isha.

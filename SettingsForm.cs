@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace PrayerTray;
@@ -8,7 +10,11 @@ namespace PrayerTray;
 public class SettingsForm : Form
 {
     readonly AppConfig _cfg;
-    readonly TextBox _city = new() { Width = 180 };
+    readonly TextBox _city = new() { Width = 120 };
+    readonly Button _detect = new() { Text = "Detect", Width = 56, Margin = new Padding(4, 0, 0, 0) };
+    readonly Button _openMap = new() { Text = "Open Maps", AutoSize = true };
+    readonly TextBox _paste = new() { Width = 120, PlaceholderText = "lat, lng or map link" };
+    readonly Button _setPaste = new() { Text = "Set", Width = 56, Margin = new Padding(4, 0, 0, 0) };
     readonly TextBox _lat = new() { Width = 180 };
     readonly TextBox _lng = new() { Width = 180 };
     readonly ComboBox _method = new() { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -17,7 +23,7 @@ public class SettingsForm : Form
     readonly TextBox _offset = new() { Width = 180 };
     readonly CheckBox _h24 = new() { Text = "Use 24-hour clock", AutoSize = true };
 
-    public SettingsForm(AppConfig cfg)
+    public SettingsForm(AppConfig cfg, DetectedLocation? prefill = null)
     {
         _cfg = cfg;
         Text = "Prayer Tray — Settings";
@@ -28,9 +34,20 @@ public class SettingsForm : Form
         Padding = new Padding(12);
 
         var layout = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Dock = DockStyle.Fill };
-        AddRow(layout, "City (label):", _city);
+        var cityRow = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), FlowDirection = FlowDirection.LeftToRight };
+        cityRow.Controls.Add(_city);
+        cityRow.Controls.Add(_detect);
+        AddRow(layout, "City (label):", cityRow);
+        _detect.Click += OnDetect;
         AddRow(layout, "Latitude:", _lat);
         AddRow(layout, "Longitude:", _lng);
+        AddRow(layout, "Pick on map:", _openMap);
+        var pasteRow = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), FlowDirection = FlowDirection.LeftToRight };
+        pasteRow.Controls.Add(_paste);
+        pasteRow.Controls.Add(_setPaste);
+        AddRow(layout, "Paste result:", pasteRow);
+        _openMap.Click += OnOpenMap;
+        _setPaste.Click += OnSetPaste;
         AddRow(layout, "Method:", _method);
         AddRow(layout, "Asr:", _asr);
         AddRow(layout, "Widget side:", _position);
@@ -53,6 +70,8 @@ public class SettingsForm : Form
         _offset.Text = cfg.WidgetOffset.ToString(CultureInfo.InvariantCulture);
         _h24.Checked = cfg.Use24Hour;
 
+        if (prefill != null) ApplyDetected(prefill);
+
         var ok = new Button { Text = "Save", DialogResult = DialogResult.OK, Width = 80 };
         var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 80 };
         ok.Click += OnSave;
@@ -71,6 +90,59 @@ public class SettingsForm : Form
     {
         base.OnHandleCreated(e);
         Interop.DarkTitleBar(Handle);
+    }
+
+    async void OnDetect(object? sender, EventArgs e)
+    {
+        _detect.Enabled = false;
+        _detect.Text = "…";
+        try
+        {
+            var loc = await LocationService.DetectAsync();
+            if (loc == null)
+            {
+                MessageBox.Show(this, "Couldn't detect location — enter it manually.",
+                    "Detect location", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            ApplyDetected(loc);
+        }
+        finally { _detect.Enabled = true; _detect.Text = "Detect"; }
+    }
+
+    async void OnOpenMap(object? sender, EventArgs e)
+    {
+        _openMap.Enabled = false;
+        try
+        {
+            var rough = await LocationService.IpRoughAsync();
+            string url = LocationService.MapsUrl(rough?.Lat, rough?.Lng);
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch { /* browser launch failed; nothing to do */ }
+        finally { _openMap.Enabled = true; }
+    }
+
+    async void OnSetPaste(object? sender, EventArgs e)
+    {
+        var loc = await LocationService.ParseAsync(_paste.Text);
+        if (loc == null)
+        {
+            MessageBox.Show(this, "Couldn't read coordinates. Right-click your spot in Google Maps, click the\n" +
+                "lat/lng to copy them, and paste here — or paste the map's address-bar URL.",
+                "Paste result", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        ApplyDetected(loc);
+    }
+
+    void ApplyDetected(DetectedLocation loc)
+    {
+        _lat.Text = loc.Lat.ToString(CultureInfo.InvariantCulture);
+        _lng.Text = loc.Lng.ToString(CultureInfo.InvariantCulture);
+        if (!string.IsNullOrWhiteSpace(loc.City)) _city.Text = loc.City;
+        else if (string.IsNullOrWhiteSpace(_city.Text)) _city.Text = "My location";
+        _method.SelectedIndex = Math.Max(0, IndexOfMethod(LocationService.MethodForCountry(loc.CountryIso)));
     }
 
     static int IndexOfMethod(string key)

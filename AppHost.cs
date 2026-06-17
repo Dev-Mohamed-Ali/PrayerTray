@@ -56,6 +56,29 @@ public class AppHost : ApplicationContext
         _widget.Show();
         _data.Start();
         _pos.Start();
+
+        if (AppConfig.IsFirstRun) ScheduleFirstRunDetect();
+    }
+
+    // Defer to a one-shot timer: the message loop must be running before we can await on the UI thread.
+    void ScheduleFirstRunDetect()
+    {
+        var t = new System.Windows.Forms.Timer { Interval = 200 };
+        t.Tick += async (_, _) => { t.Stop(); t.Dispose(); await FirstRunDetect(); };
+        t.Start();
+    }
+
+    async System.Threading.Tasks.Task FirstRunDetect()
+    {
+        var loc = await LocationService.DetectAsync();
+        using var form = new SettingsForm(_cfg, loc);
+        if (form.ShowDialog() == DialogResult.OK)
+        {
+            _cfg = AppConfig.Load();
+            ApplyWidgetConfig();
+            Recompute();
+            DataTick();
+        }
     }
 
     void WireWidget()

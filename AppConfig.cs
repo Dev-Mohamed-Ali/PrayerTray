@@ -21,6 +21,8 @@ public class AppConfig
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "PrayerTray", "config.json");
 
+    public static bool IsFirstRun => !File.Exists(Path);
+
     static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public static AppConfig Load()
