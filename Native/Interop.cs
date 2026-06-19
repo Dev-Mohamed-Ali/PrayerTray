@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 
 namespace PrayerTray.Native;
 
@@ -17,15 +18,31 @@ internal static class Interop
 
     public static IntPtr Taskbar() => FindWindow("Shell_TrayWnd", null);
 
+    /// <summary>Taskbar window for a given monitor (Screen.DeviceName); primary's Shell_TrayWnd, or the
+    /// matching Shell_SecondaryTrayWnd. Falls back to primary if that monitor has no taskbar.</summary>
+    public static IntPtr TaskbarForDevice(string? deviceName)
+    {
+        var primary = Taskbar();
+        if (string.IsNullOrEmpty(deviceName) ||
+            string.Equals(deviceName, Screen.PrimaryScreen?.DeviceName, StringComparison.OrdinalIgnoreCase))
+            return primary;
+
+        IntPtr h = IntPtr.Zero;
+        while ((h = FindWindowEx(IntPtr.Zero, h, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero)
+            if (string.Equals(Screen.FromHandle(h).DeviceName, deviceName, StringComparison.OrdinalIgnoreCase))
+                return h;
+        return primary;
+    }
+
     public static Rectangle WindowRect(IntPtr h) =>
         h != IntPtr.Zero && GetWindowRect(h, out var r) ? Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom) : Rectangle.Empty;
 
-    /// <summary>Screen-x of the system tray (clock/notification cluster) left edge, or 0 if not found.</summary>
-    public static int TrayNotifyLeft()
+    /// <summary>Screen-x of the given taskbar's tray (clock cluster) left edge, or 0 if not found
+    /// (secondary bars may have no clock cluster — caller falls back to the taskbar's right edge).</summary>
+    public static int TrayNotifyLeft(IntPtr taskbar)
     {
-        var tb = Taskbar();
-        if (tb == IntPtr.Zero) return 0;
-        var notify = FindWindowEx(tb, IntPtr.Zero, "TrayNotifyWnd", null);
+        if (taskbar == IntPtr.Zero) return 0;
+        var notify = FindWindowEx(taskbar, IntPtr.Zero, "TrayNotifyWnd", null);
         return notify != IntPtr.Zero && GetWindowRect(notify, out var r) ? r.Left : 0;
     }
 
@@ -52,7 +69,7 @@ internal static class Interop
 
     public const uint EVENT_SYSTEM_FOREGROUND = 0x0003, EVENT_OBJECT_REORDER = 0x8004, WINEVENT_OUTOFCONTEXT = 0;
 
-    public const int SW_SHOWNA = 8;
+    public const int SW_SHOWNA = 8, SW_HIDE = 0;
 
     // --- painting ---
     [DllImport("user32.dll")] public static extern IntPtr BeginPaint(IntPtr h, ref PAINTSTRUCT ps);

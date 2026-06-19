@@ -17,9 +17,11 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     public event Action<Point>? RightClicked;
     public bool AnchorRight { get; set; } = true;
     public int Offset { get; set; } = 12;
+    readonly string? _deviceName; // target monitor (null = primary)
+    public string? DeviceName => _deviceName;
 
     string _name = "—", _time = "", _count = "…";
-    bool _hover, _tracking;
+    bool _hover, _tracking, _paused;
     int _w = 160, _h = 32;
     float _scale = 1f;
     Rectangle _lastRect = Rectangle.Empty;
@@ -36,10 +38,11 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     IntPtr _fgHook, _reorderHook;
     int _lastRaise;
 
-    public TaskbarWidget()
+    public TaskbarWidget(string? deviceName = null)
     {
+        _deviceName = deviceName;
         _measure = Graphics.FromImage(_measureBmp);
-        var tb = Interop.Taskbar();
+        var tb = Interop.TaskbarForDevice(_deviceName);
         _scale = Interop.Scale(tb);
         CreateHandle(new CreateParams
         {
@@ -67,7 +70,7 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
 
     void OnWinEvent(IntPtr hook, uint evt, IntPtr hwnd, int o, int c, uint t, uint tm)
     {
-        if (Handle == IntPtr.Zero) return;
+        if (Handle == IntPtr.Zero || _paused) return;
         int now = Environment.TickCount;
         if (now - _lastRaise < 16) return; // debounce the chatty reorder events
         _lastRaise = now;
@@ -77,6 +80,11 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     public Rectangle ScreenRect => Interop.WindowRect(Handle);
     public bool Visible => Interop.IsWindowVisible(Handle);
     public void Show() => Interop.ShowWindow(Handle, Interop.SW_SHOWNA);
+    public void Hide() => Interop.ShowWindow(Handle, Interop.SW_HIDE);
+
+    // Stop fighting modal dialogs: a re-raise (SetWindowPos topmost) dismisses an open combo dropdown.
+    public void Pause() => _paused = true;
+    public void Resume() { _paused = false; SyncPosition(); }
 
     int S(float v) => (int)Math.Round(v * _scale);
     Font MainFont() => new(Theme.Family, 13f * _scale, FontStyle.Regular, GraphicsUnit.Pixel);
@@ -102,20 +110,47 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         _w = Math.Max(S(110), _w);
     }
 
-    /// <summary>Recompute target rect from the taskbar/tray and move only if it changed.</summary>
+    Screen TargetScreen()
+    {
+        if (!string.IsNullOrEmpty(_deviceName))
+            foreach (var s in Screen.AllScreens)
+                if (string.Equals(s.DeviceName, _deviceName, StringComparison.OrdinalIgnoreCase))
+                    return s;
+        return Screen.PrimaryScreen!;
+    }
+
+    /// <summary>Position over the target monitor's taskbar; if that monitor has none, hug its bottom edge.</summary>
     public void SyncPosition()
     {
-        var tb = Interop.Taskbar();
-        if (tb == IntPtr.Zero) return;
-        var tr = Interop.WindowRect(tb);
-        if (tr.IsEmpty) return;
+        if (_paused) return;
+        var screen = TargetScreen();
+        var tb = Interop.TaskbarForDevice(_deviceName);
+        bool onItsBar = tb != IntPtr.Zero &&
+                        string.Equals(Screen.FromHandle(tb).DeviceName, screen.DeviceName, StringComparison.OrdinalIgnoreCase);
 
-        _scale = Interop.Scale(tb);
-        _h = Math.Min(S(32), tr.Height - S(4));
-        int y = tr.Top + (tr.Height - _h) / 2;               // screen coords (top-level overlay)
-        int x = AnchorRight
-            ? TrayRightAnchor(tr) - _w - S(Offset)
-            : tr.Left + S(Offset);
+        _scale = Interop.Scale(onItsBar ? tb : Handle);
+        if (_scale <= 0) _scale = 1f;
+
+        Rectangle strip;        // the bar/edge the pill sits on
+        int rightEdge, leftEdge;
+        if (onItsBar)
+        {
+            strip = Interop.WindowRect(tb);
+            if (strip.IsEmpty) return;
+            rightEdge = TrayRightAnchor(strip, tb);
+            leftEdge = strip.Left;
+        }
+        else
+        {
+            var b = screen.Bounds;          // no taskbar on this monitor -> float at its bottom
+            strip = new Rectangle(b.Left, b.Bottom - S(40), b.Width, S(40));
+            rightEdge = b.Right;
+            leftEdge = b.Left;
+        }
+
+        _h = Math.Min(S(32), strip.Height - S(4));
+        int y = strip.Top + (strip.Height - _h) / 2;
+        int x = AnchorRight ? rightEdge - _w - S(Offset) : leftEdge + S(Offset);
 
         var target = new Rectangle(x, y, _w, _h);
         if (target == _lastRect) { Interop.RaiseTopmost(Handle); return; }
@@ -125,9 +160,9 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         UpdateRegion();
     }
 
-    int TrayRightAnchor(Rectangle tr)
+    int TrayRightAnchor(Rectangle tr, IntPtr tb)
     {
-        int trayLeft = Interop.TrayNotifyLeft();
+        int trayLeft = Interop.TrayNotifyLeft(tb);
         return trayLeft > 0 ? trayLeft : tr.Right;
     }
 

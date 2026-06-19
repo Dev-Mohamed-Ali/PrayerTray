@@ -76,7 +76,7 @@ public class PrayerPopup : Form
 
     void Position()
     {
-        var wa = Screen.PrimaryScreen!.Bounds;
+        var wa = Screen.FromRectangle(_widget).Bounds;
         int x = _anchorRight ? _widget.Right - Width : _widget.Left;
         x = Math.Clamp(x, wa.Left + 8, wa.Right - Width - 8);
         int y = _widget.Top - 8 - Height;

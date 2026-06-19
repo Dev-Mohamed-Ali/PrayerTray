@@ -26,6 +26,8 @@ public class SettingsForm : Form
     readonly ComboBox _position = new() { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly TextBox _offset = new() { Width = 180 };
     readonly ComboBox _theme = new() { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+    readonly ComboBox _monitor = new() { Width = 240, DropDownStyle = ComboBoxStyle.DropDownList };
+    readonly List<DisplayInfo> _displays = Displays.All();
     readonly CheckBox _h24 = new() { Text = "Use 24-hour clock", AutoSize = true };
 
     public SettingsForm(AppConfig cfg, DetectedLocation? prefill = null)
@@ -35,6 +37,7 @@ public class SettingsForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false; MinimizeBox = false;
+        TopMost = true; // dialog (and its dropdowns) above the always-on-top pill, so combos don't get dismissed
         AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
         Padding = new Padding(12);
 
@@ -58,6 +61,7 @@ public class SettingsForm : Form
         AddRow(layout, "Widget side:", _position);
         AddRow(layout, "Widget gap (px):", _offset);
         AddRow(layout, "Theme:", _theme);
+        AddRow(layout, "Monitor:", _monitor);
         layout.Controls.Add(new Label { Width = 1 }, 0, layout.RowCount);
         layout.Controls.Add(_h24, 1, layout.RowCount - 1);
 
@@ -67,6 +71,8 @@ public class SettingsForm : Form
         _position.Items.Add("Right (near the clock)");
         _position.Items.Add("Left (corner)");
         foreach (var name in Theme.Names) _theme.Items.Add(name);
+        foreach (var d in _displays)
+            _monitor.Items.Add($"{d.FriendlyName} ({d.Bounds.Width}x{d.Bounds.Height}){(d.Primary ? " — Primary" : "")}");
 
         _city.Text = cfg.City;
         _lat.Text = cfg.Latitude.ToString(CultureInfo.InvariantCulture);
@@ -76,6 +82,11 @@ public class SettingsForm : Form
         _position.SelectedIndex = string.Equals(cfg.WidgetAnchor, "Left", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
         _offset.Text = cfg.WidgetOffset.ToString(CultureInfo.InvariantCulture);
         _theme.SelectedIndex = Math.Max(0, Array.IndexOf(Theme.Names, cfg.Theme));
+        int monIdx = _displays.FindIndex(d => cfg.MonitorDeviceName == null
+            ? d.Primary
+            : string.Equals(d.DeviceName, cfg.MonitorDeviceName, StringComparison.OrdinalIgnoreCase));
+        if (monIdx < 0) monIdx = _displays.FindIndex(d => d.Primary);
+        _monitor.SelectedIndex = Math.Max(0, monIdx);
         _h24.Checked = cfg.Use24Hour;
 
         if (prefill != null) ApplyDetected(prefill);
@@ -183,6 +194,8 @@ public class SettingsForm : Form
         _cfg.Asr = _asr.SelectedIndex == 1 ? (int)AsrJuristic.Hanafi : (int)AsrJuristic.Standard;
         _cfg.WidgetAnchor = _position.SelectedIndex == 1 ? "Left" : "Right";
         _cfg.Theme = Theme.Names[_theme.SelectedIndex];
+        var mon = _displays[_monitor.SelectedIndex];
+        _cfg.MonitorDeviceName = mon.Primary ? null : mon.DeviceName;
         if (int.TryParse(_offset.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var off))
             _cfg.WidgetOffset = Math.Clamp(off, 0, 2000);
         _cfg.Use24Hour = _h24.Checked;

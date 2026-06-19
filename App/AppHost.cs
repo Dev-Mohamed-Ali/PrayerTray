@@ -26,7 +26,7 @@ public class AppHost : ApplicationContext
     readonly TaskbarWatcher _watcher = new();
     readonly System.Windows.Forms.Timer _data = new() { Interval = 15_000 };
     readonly System.Windows.Forms.Timer _pos = new() { Interval = 1_000 };
-    TaskbarWidget _widget = new();
+    TaskbarWidget _widget;
     AppConfig _cfg;
 
     Dictionary<string, TimeSpan> _times = new();
@@ -38,6 +38,7 @@ public class AppHost : ApplicationContext
     {
         _cfg = AppConfig.Load();
         Theme.Apply(_cfg.Theme);
+        _widget = new TaskbarWidget(_cfg.MonitorDeviceName);
 
         var menu = BuildMenu();
         _tray = new NotifyIcon
@@ -77,15 +78,23 @@ public class AppHost : ApplicationContext
     async System.Threading.Tasks.Task FirstRunDetect()
     {
         var loc = await LocationService.DetectAsync();
+        _widget.Pause(); _pos.Stop(); _data.Stop();
+        try
+        {
         using var form = new SettingsForm(_cfg, loc);
         if (form.ShowDialog() == DialogResult.OK)
         {
             _cfg = AppConfig.Load();
             Theme.Apply(_cfg.Theme);
-            ApplyWidgetConfig();
+            if (!DeviceEquals(_widget.DeviceName, _cfg.MonitorDeviceName))
+                RebuildWidget();
+            else
+                ApplyWidgetConfig();
             Recompute();
             DataTick();
         }
+        }
+        finally { _data.Start(); _pos.Start(); _widget.Resume(); }
     }
 
     // Live-follow Windows' light/dark flip, but only when the user left the theme on "Auto".
@@ -102,6 +111,11 @@ public class AppHost : ApplicationContext
         _widget.RightClicked += pt => _tray.ContextMenuStrip?.Show(pt);
         ApplyWidgetConfig();
     }
+
+    // Compare the widget's actual current monitor to config (null = primary) — immune to the
+    // shared-_cfg mutation that SettingsForm.OnSave does in place.
+    static bool DeviceEquals(string? a, string? b) =>
+        string.Equals(a ?? "", b ?? "", StringComparison.OrdinalIgnoreCase);
 
     void ApplyWidgetConfig()
     {
@@ -150,15 +164,23 @@ public class AppHost : ApplicationContext
 
     void OpenSettings()
     {
+        _widget.Pause(); _pos.Stop(); _data.Stop();
+        try
+        {
         using var form = new SettingsForm(_cfg);
         if (form.ShowDialog() == DialogResult.OK)
         {
             _cfg = AppConfig.Load();
             Theme.Apply(_cfg.Theme);
-            ApplyWidgetConfig();
+            if (!DeviceEquals(_widget.DeviceName, _cfg.MonitorDeviceName))
+                RebuildWidget();
+            else
+                ApplyWidgetConfig();
             Recompute();
             DataTick();
         }
+        }
+        finally { _data.Start(); _pos.Start(); _widget.Resume(); }
     }
 
     void Recompute()
@@ -239,7 +261,7 @@ public class AppHost : ApplicationContext
     {
         _widget.Clicked -= TogglePopup;
         _widget.Dispose();
-        _widget = new TaskbarWidget();
+        _widget = new TaskbarWidget(_cfg.MonitorDeviceName);
         WireWidget();
         DataTick();
     }
