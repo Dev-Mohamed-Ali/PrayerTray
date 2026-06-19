@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using PrayerTray.Calc;
+using PrayerTray.Config;
+using PrayerTray.Services;
+using PrayerTray.UI;
 
 namespace PrayerTray;
 

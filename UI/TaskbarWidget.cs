@@ -2,8 +2,9 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using PrayerTray.Native;
 
-namespace PrayerTray;
+namespace PrayerTray.UI;
 
 /// <summary>
 /// The next-prayer pill, created as a real WS_CHILD of the taskbar (Shell_TrayWnd) so it is painted

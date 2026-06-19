@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace PrayerTray;
+namespace PrayerTray.UI;
 
 internal static class Theme
 {

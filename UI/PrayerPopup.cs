@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using PrayerTray.Native;
 
-namespace PrayerTray;
+namespace PrayerTray.UI;
 
 /// <summary>Borderless popup listing today's times, shown above the widget on click.</summary>
 public class PrayerPopup : Form

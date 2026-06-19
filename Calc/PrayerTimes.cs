@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PrayerTray;
+namespace PrayerTray.Calc;
 
 public enum AsrJuristic { Standard = 1, Hanafi = 2 }
 

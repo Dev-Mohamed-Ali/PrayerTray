@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
 
-namespace PrayerTray;
+namespace PrayerTray.Native;
 
 /// <summary>All Win32/DWM interop in one place: taskbar lookup, geometry, child-window plumbing, DPI, DWM styling.</summary>
 internal static class Interop

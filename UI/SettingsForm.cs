@@ -4,8 +4,12 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using PrayerTray.Calc;
+using PrayerTray.Config;
+using PrayerTray.Native;
+using PrayerTray.Services;
 
-namespace PrayerTray;
+namespace PrayerTray.UI;
 
 public class SettingsForm : Form
 {

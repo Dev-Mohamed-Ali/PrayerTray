@@ -1,8 +1,9 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using PrayerTray.Calc;
 
-namespace PrayerTray;
+namespace PrayerTray.Config;
 
 public class AppConfig
 {

@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
-namespace PrayerTray;
+namespace PrayerTray.UI;
 
 /// <summary>Renders a small text label (e.g. countdown) into a tray-sized Icon.</summary>
 public static class IconRenderer

@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.Devices.Geolocation;
 
-namespace PrayerTray;
+namespace PrayerTray.Services;
 
 public record DetectedLocation(double Lat, double Lng, string? City, string? CountryIso, string Source);
 
