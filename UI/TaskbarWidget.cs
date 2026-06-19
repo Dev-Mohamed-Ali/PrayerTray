@@ -16,12 +16,13 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     public event Action? Clicked;
     public event Action<Point>? RightClicked;
     public bool AnchorRight { get; set; } = true;
+    public bool HideOnFullscreen { get; set; } = true;
     public int Offset { get; set; } = 12;
     readonly string? _deviceName; // target monitor (null = primary)
     public string? DeviceName => _deviceName;
 
     string _name = "—", _time = "", _count = "…";
-    bool _hover, _tracking, _paused;
+    bool _hover, _tracking, _paused, _suppressed;
     int _w = 160, _h = 32;
     float _scale = 1f;
     Rectangle _lastRect = Rectangle.Empty;
@@ -74,7 +75,24 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         int now = Environment.TickCount;
         if (now - _lastRaise < 16) return; // debounce the chatty reorder events
         _lastRaise = now;
-        Interop.RaiseTopmost(Handle);
+        UpdateVisibility();
+    }
+
+    // Single authority for show/hide/raise. Owned by the taskbar, so re-raising over a fullscreen app
+    // drags the whole taskbar up (Win10) — suppress instead. Driven by the win-event hooks (instant)
+    // and the 1s safety Tick.
+    public void Tick() => UpdateVisibility();
+
+    void UpdateVisibility()
+    {
+        if (Handle == IntPtr.Zero || _paused) return;
+        if (HideOnFullscreen && Interop.IsFullscreenAppOnScreen(TargetScreen().Bounds))
+        {
+            if (!_suppressed) { _suppressed = true; Hide(); }
+            return;
+        }
+        if (_suppressed) { _suppressed = false; Show(); }
+        SyncPosition();
     }
 
     public Rectangle ScreenRect => Interop.WindowRect(Handle);
@@ -84,7 +102,7 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
 
     // Stop fighting modal dialogs: a re-raise (SetWindowPos topmost) dismisses an open combo dropdown.
     public void Pause() => _paused = true;
-    public void Resume() { _paused = false; SyncPosition(); }
+    public void Resume() { _paused = false; UpdateVisibility(); }
 
     int S(float v) => (int)Math.Round(v * _scale);
     Font MainFont() => new(Theme.Family, 13f * _scale, FontStyle.Regular, GraphicsUnit.Pixel);

@@ -5,7 +5,6 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 using PrayerTray.Calc;
 using PrayerTray.Config;
-using PrayerTray.Native;
 using PrayerTray.Services;
 using PrayerTray.UI;
 
@@ -57,7 +56,7 @@ public class AppHost : ApplicationContext
         _watcher.ThemeChanged += OnSystemThemeChanged;
 
         _data.Tick += (_, _) => DataTick();
-        _pos.Tick += (_, _) => PositionTick();
+        _pos.Tick += (_, _) => _widget.Tick();
 
         Recompute();
         DataTick();
@@ -122,6 +121,7 @@ public class AppHost : ApplicationContext
     {
         _widget.AnchorRight = !string.Equals(_cfg.WidgetAnchor, "Left", StringComparison.OrdinalIgnoreCase);
         _widget.Offset = _cfg.WidgetOffset;
+        _widget.HideOnFullscreen = _cfg.HideOnFullscreen;
     }
 
     static Icon LoadAppIcon()
@@ -206,19 +206,6 @@ public class AppHost : ApplicationContext
 
         if (_popup.Visible) ShowPopup();
         CheckNotification();
-    }
-
-    // Owns pill visibility: hide over a fullscreen app on its monitor, else show + reposition.
-    void PositionTick()
-    {
-        if (_cfg.HideOnFullscreen &&
-            Interop.IsFullscreenAppOnScreen(Screen.FromRectangle(_widget.ScreenRect).Bounds))
-        {
-            if (_widget.Visible) _widget.Hide();
-            return;
-        }
-        if (!_widget.Visible) _widget.Show();
-        _widget.SyncPosition();
     }
 
     // Edge-triggered, day-aware: announce a prayer once, within ~90s of it starting.
