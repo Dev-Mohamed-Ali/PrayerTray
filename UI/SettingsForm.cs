@@ -15,7 +15,9 @@ public class SettingsForm : Form
 {
     readonly AppConfig _cfg;
     readonly TextBox _city = new() { Width = 120 };
+#if !MANUAL_ONLY
     readonly Button _detect = new() { Text = "Detect", Width = 56, Margin = new Padding(4, 0, 0, 0) };
+#endif
     readonly Button _openMap = new() { Text = "Open Maps", AutoSize = true };
     readonly TextBox _paste = new() { Width = 120, PlaceholderText = "lat, lng or map link" };
     readonly Button _setPaste = new() { Text = "Set", Width = 56, Margin = new Padding(4, 0, 0, 0) };
@@ -45,9 +47,13 @@ public class SettingsForm : Form
         var layout = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Dock = DockStyle.Fill };
         var cityRow = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), FlowDirection = FlowDirection.LeftToRight };
         cityRow.Controls.Add(_city);
+#if !MANUAL_ONLY
         cityRow.Controls.Add(_detect);
+#endif
         AddRow(layout, "City (label):", cityRow);
+#if !MANUAL_ONLY
         _detect.Click += OnDetect;
+#endif
         AddRow(layout, "Latitude:", _lat);
         AddRow(layout, "Longitude:", _lng);
         AddRow(layout, "Pick on map:", _openMap);
@@ -115,6 +121,7 @@ public class SettingsForm : Form
         Interop.TitleBar(Handle, Theme.Current.IsDark);
     }
 
+#if !MANUAL_ONLY
     async void OnDetect(object? sender, EventArgs e)
     {
         _detect.Enabled = false;
@@ -132,6 +139,7 @@ public class SettingsForm : Form
         }
         finally { _detect.Enabled = true; _detect.Text = "Detect"; }
     }
+#endif
 
     async void OnOpenMap(object? sender, EventArgs e)
     {

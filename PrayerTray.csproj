@@ -1,9 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- ManualOnly=true builds the no-auto-detect variant: drops the Windows.Devices.Geolocation
+       (WinRT) projection, so it can target plain net8.0-windows and the FD exe stays ~220 KB. -->
+  <PropertyGroup>
+    <ManualOnly Condition="'$(ManualOnly)'==''">false</ManualOnly>
+  </PropertyGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
-    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -14,6 +18,16 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(ManualOnly)'=='true'">
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <DefineConstants>$(DefineConstants);MANUAL_ONLY</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(ManualOnly)'!='true'">
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
   <ItemGroup>

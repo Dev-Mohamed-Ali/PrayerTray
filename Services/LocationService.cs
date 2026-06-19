@@ -6,7 +6,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+#if !MANUAL_ONLY
 using Windows.Devices.Geolocation;
+#endif
 
 namespace PrayerTray.Services;
 
@@ -17,6 +19,11 @@ public static class LocationService
 {
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(5) };
 
+#if MANUAL_ONLY
+    // Manual build: no auto-detect. First run just opens Settings for manual entry / map-link paste.
+    public static Task<DetectedLocation?> DetectAsync(CancellationToken ct = default) =>
+        Task.FromResult<DetectedLocation?>(null);
+#else
     public static async Task<DetectedLocation?> DetectAsync(CancellationToken ct = default)
         => await TryWindowsLocation() ?? await TryIpGeo(ct);
 
@@ -32,6 +39,7 @@ public static class LocationService
         }
         catch { return null; }
     }
+#endif
 
     /// <summary>IP-geo only — rough, used to pre-center the map view (never saved as-is).</summary>
     public static Task<DetectedLocation?> IpRoughAsync(CancellationToken ct = default) => TryIpGeo(ct);
