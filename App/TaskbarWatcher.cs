@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using PrayerTray.Native;
 
@@ -12,6 +13,7 @@ public sealed class TaskbarWatcher : NativeWindow, IDisposable
 {
     readonly int _taskbarCreated;
     public event Action? Recreated;
+    public event Action? ThemeChanged; // Windows app light/dark flip (WM_SETTINGCHANGE / ImmersiveColorSet)
 
     public TaskbarWatcher()
     {
@@ -22,8 +24,12 @@ public sealed class TaskbarWatcher : NativeWindow, IDisposable
     protected override void WndProc(ref Message m)
     {
         if (m.Msg == _taskbarCreated) Recreated?.Invoke();
+        else if (m.Msg == Interop.WM_SETTINGCHANGE && IsColorChange(m.LParam)) ThemeChanged?.Invoke();
         base.WndProc(ref m);
     }
+
+    static bool IsColorChange(IntPtr lParam) =>
+        lParam != IntPtr.Zero && Marshal.PtrToStringAuto(lParam) == "ImmersiveColorSet";
 
     public void Dispose()
     {

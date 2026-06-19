@@ -25,6 +25,7 @@ public class SettingsForm : Form
     readonly ComboBox _asr = new() { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly ComboBox _position = new() { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly TextBox _offset = new() { Width = 180 };
+    readonly ComboBox _theme = new() { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly CheckBox _h24 = new() { Text = "Use 24-hour clock", AutoSize = true };
 
     public SettingsForm(AppConfig cfg, DetectedLocation? prefill = null)
@@ -56,6 +57,7 @@ public class SettingsForm : Form
         AddRow(layout, "Asr:", _asr);
         AddRow(layout, "Widget side:", _position);
         AddRow(layout, "Widget gap (px):", _offset);
+        AddRow(layout, "Theme:", _theme);
         layout.Controls.Add(new Label { Width = 1 }, 0, layout.RowCount);
         layout.Controls.Add(_h24, 1, layout.RowCount - 1);
 
@@ -64,6 +66,7 @@ public class SettingsForm : Form
         _asr.Items.Add("Hanafi");
         _position.Items.Add("Right (near the clock)");
         _position.Items.Add("Left (corner)");
+        foreach (var name in Theme.Names) _theme.Items.Add(name);
 
         _city.Text = cfg.City;
         _lat.Text = cfg.Latitude.ToString(CultureInfo.InvariantCulture);
@@ -72,6 +75,7 @@ public class SettingsForm : Form
         _asr.SelectedIndex = cfg.Asr == (int)AsrJuristic.Hanafi ? 1 : 0;
         _position.SelectedIndex = string.Equals(cfg.WidgetAnchor, "Left", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
         _offset.Text = cfg.WidgetOffset.ToString(CultureInfo.InvariantCulture);
+        _theme.SelectedIndex = Math.Max(0, Array.IndexOf(Theme.Names, cfg.Theme));
         _h24.Checked = cfg.Use24Hour;
 
         if (prefill != null) ApplyDetected(prefill);
@@ -93,7 +97,7 @@ public class SettingsForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        Interop.DarkTitleBar(Handle);
+        Interop.TitleBar(Handle, Theme.Current.IsDark);
     }
 
     async void OnDetect(object? sender, EventArgs e)
@@ -178,6 +182,7 @@ public class SettingsForm : Form
         _cfg.Method = keys[_method.SelectedIndex];
         _cfg.Asr = _asr.SelectedIndex == 1 ? (int)AsrJuristic.Hanafi : (int)AsrJuristic.Standard;
         _cfg.WidgetAnchor = _position.SelectedIndex == 1 ? "Left" : "Right";
+        _cfg.Theme = Theme.Names[_theme.SelectedIndex];
         if (int.TryParse(_offset.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var off))
             _cfg.WidgetOffset = Math.Clamp(off, 0, 2000);
         _cfg.Use24Hour = _h24.Checked;

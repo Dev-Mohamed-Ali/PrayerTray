@@ -79,7 +79,7 @@ internal static class Interop
 
     const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20, DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2;
 
-    public static void DarkTitleBar(IntPtr h) { int v = 1; DwmSetWindowAttribute(h, DWMWA_USE_IMMERSIVE_DARK_MODE, ref v, 4); }
+    public static void TitleBar(IntPtr h, bool dark) { int v = dark ? 1 : 0; DwmSetWindowAttribute(h, DWMWA_USE_IMMERSIVE_DARK_MODE, ref v, 4); }
     public static void RoundCorners(IntPtr h) { int v = DWMWCP_ROUND; DwmSetWindowAttribute(h, DWMWA_WINDOW_CORNER_PREFERENCE, ref v, 4); }
 
     // --- structs / messages ---
@@ -97,6 +97,7 @@ internal static class Interop
     }
 
     public const int WM_PAINT = 0x000F, WM_ERASEBKGND = 0x0014, WM_MOUSEMOVE = 0x0200,
-        WM_MOUSELEAVE = 0x02A3, WM_LBUTTONUP = 0x0202, WM_RBUTTONUP = 0x0205, WM_MOUSEACTIVATE = 0x0021;
+        WM_MOUSELEAVE = 0x02A3, WM_LBUTTONUP = 0x0202, WM_RBUTTONUP = 0x0205, WM_MOUSEACTIVATE = 0x0021,
+        WM_SETTINGCHANGE = 0x001A;
     public const int MA_NOACTIVATE = 3;
 }

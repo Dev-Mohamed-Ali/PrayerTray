@@ -48,6 +48,7 @@ public class PrayerPopup : Form
     {
         _widget = widgetRect;
         _anchorRight = anchorRight;
+        BackColor = Theme.Panel;
         _city = city;
         _date = date.ToString("dddd, dd MMM");
         _countdown = countdown;

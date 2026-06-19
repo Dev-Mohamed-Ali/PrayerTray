@@ -37,6 +37,7 @@ public class AppHost : ApplicationContext
     public AppHost()
     {
         _cfg = AppConfig.Load();
+        Theme.Apply(_cfg.Theme);
 
         var menu = BuildMenu();
         _tray = new NotifyIcon
@@ -51,6 +52,7 @@ public class AppHost : ApplicationContext
         WireWidget();
         _popup.VisibleChanged += (_, _) => { if (!_popup.Visible) _popupHiddenAt = DateTime.Now; };
         _watcher.Recreated += RebuildWidget;
+        _watcher.ThemeChanged += OnSystemThemeChanged;
 
         _data.Tick += (_, _) => DataTick();
         _pos.Tick += (_, _) => _widget.SyncPosition();
@@ -79,10 +81,19 @@ public class AppHost : ApplicationContext
         if (form.ShowDialog() == DialogResult.OK)
         {
             _cfg = AppConfig.Load();
+            Theme.Apply(_cfg.Theme);
             ApplyWidgetConfig();
             Recompute();
             DataTick();
         }
+    }
+
+    // Live-follow Windows' light/dark flip, but only when the user left the theme on "Auto".
+    void OnSystemThemeChanged()
+    {
+        if (!string.Equals(_cfg.Theme, "Auto", StringComparison.OrdinalIgnoreCase)) return;
+        Theme.Apply(_cfg.Theme);
+        DataTick(); // re-renders the pill; re-shows the popup if open
     }
 
     void WireWidget()
@@ -143,6 +154,7 @@ public class AppHost : ApplicationContext
         if (form.ShowDialog() == DialogResult.OK)
         {
             _cfg = AppConfig.Load();
+            Theme.Apply(_cfg.Theme);
             ApplyWidgetConfig();
             Recompute();
             DataTick();
