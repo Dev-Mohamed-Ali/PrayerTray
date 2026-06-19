@@ -42,6 +42,16 @@ Right-click → **Settings**: city label, latitude/longitude, method (MWL / ISNA
 Karachi), Asr juristic (Standard / Hanafi), 12/24h clock, widget side (Left/Right) + gap.
 Saved to `%APPDATA%\PrayerTray\config.json`. Defaults to Makkah until changed.
 
+**Appearance & placement:**
+
+- **Theme** — `Auto` follows the Windows app light/dark setting live (no restart); or pick a fixed
+  palette: `Dark`, `Light`, `Midnight`, `Slate`, `Warm`. Recolors both the pill and the popup.
+- **Monitor** — put the pill on any display (listed by real monitor name). It rides that monitor's
+  taskbar; if that monitor has no taskbar (e.g. *Show my taskbar on all displays* is off), the pill
+  floats at the bottom of that screen instead.
+- **Hide over fullscreen apps** (on by default) — the pill hides while a game or fullscreen video
+  owns its monitor, and reappears when you exit fullscreen.
+
 **Set location — two ways** (both auto-run/appear on first launch):
 
 - **Detect** (one click): tries the **Windows location service** first (accurate; needs *Settings ▸
@@ -70,16 +80,20 @@ Requires the .NET 8 Desktop Runtime (installed). Use `--self-contained` for a no
 
 ## Files
 
+Source is grouped by concern (single `PrayerTray` assembly, nested namespaces):
+
 | File | Role |
 |------|------|
-| `PrayerTimes.cs` | Offline astronomical calculation (validated, incl. high-latitude fix) |
-| `AppConfig.cs` | JSON config load/save |
-| `AppHost.cs` | Orchestrator: widget + tray + popup + timers + notifications |
-| `TaskbarWidget.cs` | The overlay pill — raw Win32 window, DPI-aware, instant re-raise hook |
-| `PrayerPopup.cs` | Today's-times popup (custom-painted) |
-| `SettingsForm.cs` | Settings dialog |
-| `TaskbarWatcher.cs` | Rebuilds the pill when Explorer restarts |
-| `Theme.cs` | Colors + taskbar geometry |
-| `Interop.cs` | All Win32/DWM P/Invoke in one place |
-| `IconRenderer.cs` | Renders the tray glyph |
-| `Program.cs` | Entry point (single-instance) |
+| `Calc/PrayerTimes.cs` | Offline astronomical calculation (validated, incl. high-latitude fix) |
+| `Config/AppConfig.cs` | JSON config load/save |
+| `Services/LocationService.cs` | One-shot location detect (Windows Location → IP) + map-link parsing |
+| `Native/Interop.cs` | Win32/DWM P/Invoke: taskbar, geometry, DPI, fullscreen detect, light/dark title bar |
+| `Native/Displays.cs` | Monitor enumeration + friendly names (CCD DisplayConfig API) |
+| `UI/Theme.cs` | Palettes (Dark/Light/Midnight/Slate/Warm) + Auto-follow + taskbar geometry |
+| `UI/IconRenderer.cs` | Renders the tray glyph |
+| `UI/TaskbarWidget.cs` | The overlay pill — raw Win32 window, DPI-aware, per-monitor, instant re-raise |
+| `UI/PrayerPopup.cs` | Today's-times popup (custom-painted) |
+| `UI/SettingsForm.cs` | Settings dialog |
+| `App/Program.cs` | Entry point (single-instance) |
+| `App/AppHost.cs` | Orchestrator: widget + tray + popup + timers + notifications |
+| `App/TaskbarWatcher.cs` | Rebuilds the pill on Explorer restart; signals Windows theme changes |
