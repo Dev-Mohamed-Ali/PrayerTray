@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms;
 
 namespace PrayerTray.Native;
@@ -44,6 +45,35 @@ internal static class Interop
         if (taskbar == IntPtr.Zero) return 0;
         var notify = FindWindowEx(taskbar, IntPtr.Zero, "TrayNotifyWnd", null);
         return notify != IntPtr.Zero && GetWindowRect(notify, out var r) ? r.Left : 0;
+    }
+
+    // --- fullscreen detection ---
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder buf, int max);
+
+    static string ClassName(IntPtr h)
+    {
+        var sb = new StringBuilder(64);
+        GetClassName(h, sb, sb.Capacity);
+        return sb.ToString();
+    }
+
+    /// <summary>True if the foreground window is a real app covering the whole given monitor (game /
+    /// borderless or exclusive fullscreen / fullscreen video) — excludes the shell and desktop.</summary>
+    public static bool IsFullscreenAppOnScreen(Rectangle screenBounds)
+    {
+        var fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero || !GetWindowRect(fg, out var r)) return false;
+        switch (ClassName(fg))
+        {
+            case "Shell_TrayWnd":
+            case "Shell_SecondaryTrayWnd":
+            case "WorkerW":
+            case "Progman":
+                return false;
+        }
+        return r.Left <= screenBounds.Left && r.Top <= screenBounds.Top &&
+               r.Right >= screenBounds.Right && r.Bottom >= screenBounds.Bottom;
     }
 
     // --- overlay window plumbing ---

@@ -29,6 +29,7 @@ public class SettingsForm : Form
     readonly ComboBox _monitor = new() { Width = 240, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly List<DisplayInfo> _displays = Displays.All();
     readonly CheckBox _h24 = new() { Text = "Use 24-hour clock", AutoSize = true };
+    readonly CheckBox _hideFs = new() { Text = "Hide over fullscreen apps", AutoSize = true };
 
     public SettingsForm(AppConfig cfg, DetectedLocation? prefill = null)
     {
@@ -64,6 +65,8 @@ public class SettingsForm : Form
         AddRow(layout, "Monitor:", _monitor);
         layout.Controls.Add(new Label { Width = 1 }, 0, layout.RowCount);
         layout.Controls.Add(_h24, 1, layout.RowCount - 1);
+        layout.Controls.Add(new Label { Width = 1 }, 0, layout.RowCount);
+        layout.Controls.Add(_hideFs, 1, layout.RowCount - 1);
 
         foreach (var (key, m) in CalcMethod.All) _method.Items.Add($"{key} — {m.Name}");
         _asr.Items.Add("Standard (Shafi'i, Maliki, Hanbali)");
@@ -88,6 +91,7 @@ public class SettingsForm : Form
         if (monIdx < 0) monIdx = _displays.FindIndex(d => d.Primary);
         _monitor.SelectedIndex = Math.Max(0, monIdx);
         _h24.Checked = cfg.Use24Hour;
+        _hideFs.Checked = cfg.HideOnFullscreen;
 
         if (prefill != null) ApplyDetected(prefill);
 
@@ -199,6 +203,7 @@ public class SettingsForm : Form
         if (int.TryParse(_offset.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var off))
             _cfg.WidgetOffset = Math.Clamp(off, 0, 2000);
         _cfg.Use24Hour = _h24.Checked;
+        _cfg.HideOnFullscreen = _hideFs.Checked;
         _cfg.Save();
     }
 

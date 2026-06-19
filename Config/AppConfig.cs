@@ -17,6 +17,7 @@ public class AppConfig
     public int WidgetOffset { get; set; } = 12;          // px gap from that edge (or from the tray)
     public string Theme { get; set; } = "Auto";          // Auto | Dark | Light | Midnight | Slate | Warm
     public string? MonitorDeviceName { get; set; }       // null = primary monitor's taskbar
+    public bool HideOnFullscreen { get; set; } = true;   // hide the pill over fullscreen apps/games
     // 999 = use system timezone for the date (handles DST); else fixed UTC offset hours.
     public double TimezoneHours { get; set; } = 999;
 
