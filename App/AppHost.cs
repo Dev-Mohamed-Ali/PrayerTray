@@ -32,12 +32,13 @@ public class AppHost : ApplicationContext
     Dictionary<string, TimeSpan> _times = new();
     DateTime _timesDate = DateTime.MinValue;
     DateTime _popupHiddenAt = DateTime.MinValue;
-    string _lastAnnouncedId = "";
+    readonly HashSet<string> _fired = new();   // reminder/azan ids already fired today
+    DateTime _firedDate = DateTime.MinValue;
 
     public AppHost()
     {
         _cfg = AppConfig.Load();
-        Theme.Apply(_cfg.Theme);
+        ApplyTheme();
         _widget = new TaskbarWidget(_cfg.MonitorDeviceName);
 
         var menu = BuildMenu();
@@ -52,6 +53,9 @@ public class AppHost : ApplicationContext
 
         WireWidget();
         _popup.VisibleChanged += (_, _) => { if (!_popup.Visible) _popupHiddenAt = DateTime.Now; };
+        _popup.InitPin(_cfg.PopupPinned, _cfg.PopupX, _cfg.PopupY);
+        _popup.PinChanged += pinned => { _cfg.PopupPinned = pinned; _cfg.Save(); };
+        _popup.Moved += (x, y) => { _cfg.PopupX = x; _cfg.PopupY = y; _cfg.Save(); };
         _watcher.Recreated += RebuildWidget;
         _watcher.ThemeChanged += OnSystemThemeChanged;
 
@@ -63,8 +67,27 @@ public class AppHost : ApplicationContext
         _widget.Show();
         _data.Start();
         _pos.Start();
+        if (_cfg.PopupPinned) ShowPopup();
 
         if (AppConfig.IsFirstRun) ScheduleFirstRunDetect();
+    }
+
+    void ApplyTheme()
+    {
+        Theme.Apply(_cfg.Theme);
+        Theme.Family = _cfg.FontFamily;
+        Theme.FontScale = _cfg.FontScale;
+    }
+
+    // Settings live preview: re-apply the (in-place mutated) config to the pill without leaving pause —
+    // monitor changes are deferred to Save (RebuildWidget), so we just reposition + re-render here.
+    void LivePreview()
+    {
+        ApplyTheme();
+        ApplyWidgetConfig();
+        Recompute();
+        DataTick();
+        _widget.PreviewReposition();
     }
 
     // Defer to a one-shot timer: the message loop must be running before we can await on the UI thread.
@@ -81,18 +104,10 @@ public class AppHost : ApplicationContext
         _widget.Pause(); _pos.Stop(); _data.Stop();
         try
         {
-        using var form = new SettingsForm(_cfg, loc);
-        if (form.ShowDialog() == DialogResult.OK)
-        {
-            _cfg = AppConfig.Load();
-            Theme.Apply(_cfg.Theme);
-            if (!DeviceEquals(_widget.DeviceName, _cfg.MonitorDeviceName))
-                RebuildWidget();
-            else
-                ApplyWidgetConfig();
-            Recompute();
-            DataTick();
-        }
+        using var form = new SettingsForm(_cfg, LivePreview, loc);
+        if (form.ShowDialog() == DialogResult.OK
+            && !DeviceEquals(_widget.DeviceName, _cfg.MonitorDeviceName))
+            RebuildWidget(); // monitor change is the only thing live preview defers
         }
         finally { _data.Start(); _pos.Start(); _widget.Resume(); }
     }
@@ -101,7 +116,7 @@ public class AppHost : ApplicationContext
     void OnSystemThemeChanged()
     {
         if (!string.Equals(_cfg.Theme, "Auto", StringComparison.OrdinalIgnoreCase)) return;
-        Theme.Apply(_cfg.Theme);
+        ApplyTheme();
         DataTick(); // re-renders the pill; re-shows the popup if open
     }
 
@@ -144,6 +159,7 @@ public class AppHost : ApplicationContext
         startup.Click += (_, _) => { SetStartup(!startup.Checked); startup.Checked = IsStartupEnabled(); };
         menu.Items.Add(startup);
         menu.Items.Add("Settings…", null, (_, _) => OpenSettings());
+        menu.Items.Add("Stop sound", null, (_, _) => AudioPlayer.Stop());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => ExitApp());
         return menu;
@@ -168,18 +184,10 @@ public class AppHost : ApplicationContext
         _widget.Pause(); _pos.Stop(); _data.Stop();
         try
         {
-        using var form = new SettingsForm(_cfg);
-        if (form.ShowDialog() == DialogResult.OK)
-        {
-            _cfg = AppConfig.Load();
-            Theme.Apply(_cfg.Theme);
-            if (!DeviceEquals(_widget.DeviceName, _cfg.MonitorDeviceName))
-                RebuildWidget();
-            else
-                ApplyWidgetConfig();
-            Recompute();
-            DataTick();
-        }
+        using var form = new SettingsForm(_cfg, LivePreview);
+        if (form.ShowDialog() == DialogResult.OK
+            && !DeviceEquals(_widget.DeviceName, _cfg.MonitorDeviceName))
+            RebuildWidget(); // monitor change is the only thing live preview defers
         }
         finally { _data.Start(); _pos.Start(); _widget.Resume(); }
     }
@@ -208,22 +216,53 @@ public class AppHost : ApplicationContext
         CheckNotification();
     }
 
-    // Edge-triggered, day-aware: announce a prayer once, within ~90s of it starting.
+    // Edge-triggered, day-aware: each reminder/azan fires once, within ~90s of its moment (tick = 15s).
     void CheckNotification()
     {
         var now = DateTime.Now;
+        if (_firedDate != DateTime.Today) { _fired.Clear(); _firedDate = DateTime.Today; }
+
         foreach (var (key, label) in Order)
         {
             if (key == "sunrise" || !_times.TryGetValue(key, out var ts)) continue;
-            double since = (now - DateTime.Today.Add(ts)).TotalSeconds;
-            if (since < 0 || since >= 90) continue;
-            string id = $"{now:yyyyMMdd}:{key}";
-            if (_lastAnnouncedId == id) return;
-            _lastAnnouncedId = id;
-            _tray.ShowBalloonTip(8000, "Prayer time",
-                $"It is now {label} ({PrayerPopup.Format(ts, _cfg.Use24Hour)})", ToolTipIcon.Info);
-            return;
+            var at = DateTime.Today.Add(ts);
+
+            if (_cfg.ReminderEnabled && InWindow(now, at.AddMinutes(-_cfg.ReminderMinutes))
+                && _fired.Add($"{now:yyyyMMdd}:{key}:rem"))
+            {
+                _tray.ShowBalloonTip(8000, "Prayer reminder",
+                    $"{label} in {_cfg.ReminderMinutes} min ({PrayerPopup.Format(ts, _cfg.Use24Hour)})", ToolTipIcon.Info);
+                if (_cfg.ReminderSound) AudioPlayer.PlayReminder(_cfg);
+            }
+
+            if (InWindow(now, at) && _fired.Add($"{now:yyyyMMdd}:{key}"))
+            {
+                _tray.ShowBalloonTip(8000, "Prayer time",
+                    $"It is now {label} ({PrayerPopup.Format(ts, _cfg.Use24Hour)})", ToolTipIcon.Info);
+                PlayAzan();
+            }
         }
+    }
+
+    static bool InWindow(DateTime now, DateTime target)
+    {
+        double s = (now - target).TotalSeconds;
+        return s >= 0 && s < 90;
+    }
+
+    void PlayAzan()
+    {
+        string mode = _cfg.AzanMode;
+        if (mode == "Builtin") // legacy config -> first available builtin
+            mode = AudioPlayer.BuiltinAdhans.Count > 0 ? AudioPlayer.BuiltinAdhans[0].id : "None";
+
+        string? path = mode switch
+        {
+            "None" or "" => null,
+            "Custom" => _cfg.AzanCustomPath,
+            _ => AudioPlayer.BuiltinAdhanPath(mode),
+        };
+        if (path != null) AudioPlayer.Play(path);
     }
 
     (string? key, DateTime? at, string countdown) NextPrayer()
@@ -282,6 +321,7 @@ public class AppHost : ApplicationContext
 
     void ExitApp()
     {
+        AudioPlayer.Stop();
         _data.Stop();
         _pos.Stop();
         _tray.Visible = false;

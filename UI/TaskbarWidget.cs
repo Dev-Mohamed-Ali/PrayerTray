@@ -105,8 +105,8 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     public void Resume() { _paused = false; UpdateVisibility(); }
 
     int S(float v) => (int)Math.Round(v * _scale);
-    Font MainFont() => new(Theme.Family, 13f * _scale, FontStyle.Regular, GraphicsUnit.Pixel);
-    Font CountFont() => new(Theme.Family, 13f * _scale, FontStyle.Bold, GraphicsUnit.Pixel);
+    Font MainFont() => new(Theme.Family, 13f * _scale * Theme.FontScale, FontStyle.Regular, GraphicsUnit.Pixel);
+    Font CountFont() => new(Theme.Family, 13f * _scale * Theme.FontScale, FontStyle.Bold, GraphicsUnit.Pixel);
 
     public void SetData(string name, string time, string countdown)
     {
@@ -138,9 +138,14 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     }
 
     /// <summary>Position over the target monitor's taskbar; if that monitor has none, hug its bottom edge.</summary>
-    public void SyncPosition()
+    public void SyncPosition() { if (_paused) return; PositionCore(raise: true); }
+
+    // Reposition + region update for Settings live preview: bypasses the pause guard and never re-raises
+    // (a raise would dismiss an open combo dropdown in the dialog).
+    public void PreviewReposition() => PositionCore(raise: false);
+
+    void PositionCore(bool raise)
     {
-        if (_paused) return;
         var screen = TargetScreen();
         var tb = Interop.TaskbarForDevice(_deviceName);
         bool onItsBar = tb != IntPtr.Zero &&
@@ -171,10 +176,10 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         int x = AnchorRight ? rightEdge - _w - S(Offset) : leftEdge + S(Offset);
 
         var target = new Rectangle(x, y, _w, _h);
-        if (target == _lastRect) { Interop.RaiseTopmost(Handle); return; }
+        if (target == _lastRect) { if (raise) Interop.RaiseTopmost(Handle); return; }
         _lastRect = target;
         Interop.MoveWindow(Handle, x, y, _w, _h, true);
-        Interop.RaiseTopmost(Handle);
+        if (raise) Interop.RaiseTopmost(Handle);
         UpdateRegion();
     }
 

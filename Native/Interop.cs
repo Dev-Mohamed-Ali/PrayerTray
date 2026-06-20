@@ -76,6 +76,11 @@ internal static class Interop
                r.Right >= screenBounds.Right && r.Bottom >= screenBounds.Bottom;
     }
 
+    // --- borderless drag (popup) ---
+    [DllImport("user32.dll")] public static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
+    public const int WM_NCLBUTTONDOWN = 0xA1, HTCAPTION = 2;
+
     // --- overlay window plumbing ---
     [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int ht, bool repaint);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);

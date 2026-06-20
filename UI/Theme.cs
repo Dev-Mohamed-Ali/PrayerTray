@@ -72,7 +72,8 @@ internal static class Theme
     public static Color AccentSoft => Current.AccentSoft;
     public static Color Good => Current.Good;
 
-    public const string Family = "Segoe UI";
+    public static string Family { get; set; } = "Segoe UI";
+    public static float FontScale { get; set; } = 1f; // user font-size multiplier (Settings)
 
     // Bottom strip reserved by the taskbar on the primary screen.
     public static Rectangle TaskbarStrip()

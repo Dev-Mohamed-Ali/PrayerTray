@@ -21,6 +21,39 @@ public class AppConfig
     // 999 = use system timezone for the date (handles DST); else fixed UTC offset hours.
     public double TimezoneHours { get; set; } = 999;
 
+    public string FontFamily { get; set; } = "Segoe UI";
+    public int FontScalePct { get; set; } = 100;         // clamped 80–150 on save
+
+    public bool PopupPinned { get; set; } = false;       // keep the times panel open
+    public int PopupX { get; set; } = int.MinValue;      // int.MinValue = unset -> anchor to the pill
+    public int PopupY { get; set; } = int.MinValue;
+
+    public bool ReminderEnabled { get; set; } = false;
+    public int ReminderMinutes { get; set; } = 10;       // clamped 1–60 on save
+    public bool ReminderSound { get; set; } = true;
+    public string ReminderSoundId { get; set; } = "chime"; // synth bank id, or "custom"
+    public string? ReminderSoundPath { get; set; }       // custom file (when id == "custom")
+
+    public string AzanMode { get; set; } = "None";       // None | <builtin id> | Custom
+    public string? AzanCustomPath { get; set; }
+
+    public float FontScale => Math.Clamp(FontScalePct, 80, 150) / 100f;
+
+    public AppConfig Clone() => (AppConfig)MemberwiseClone();
+
+    /// <summary>Copy all fields from another instance in place (used to revert on Cancel).</summary>
+    public void CopyFrom(AppConfig o)
+    {
+        City = o.City; Latitude = o.Latitude; Longitude = o.Longitude; Method = o.Method; Asr = o.Asr;
+        Use24Hour = o.Use24Hour; WidgetAnchor = o.WidgetAnchor; WidgetOffset = o.WidgetOffset; Theme = o.Theme;
+        MonitorDeviceName = o.MonitorDeviceName; HideOnFullscreen = o.HideOnFullscreen; TimezoneHours = o.TimezoneHours;
+        FontFamily = o.FontFamily; FontScalePct = o.FontScalePct;
+        PopupPinned = o.PopupPinned; PopupX = o.PopupX; PopupY = o.PopupY;
+        ReminderEnabled = o.ReminderEnabled; ReminderMinutes = o.ReminderMinutes; ReminderSound = o.ReminderSound;
+        ReminderSoundId = o.ReminderSoundId; ReminderSoundPath = o.ReminderSoundPath;
+        AzanMode = o.AzanMode; AzanCustomPath = o.AzanCustomPath;
+    }
+
     static string Path => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "PrayerTray", "config.json");
