@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using PrayerTray.I18n;
 using PrayerTray.Native;
 
 namespace PrayerTray.UI;
@@ -11,11 +12,7 @@ namespace PrayerTray.UI;
 /// Can be pinned to stay open (draggable, remembers position).</summary>
 public class PrayerPopup : Form
 {
-    static readonly (string key, string label)[] Order =
-    {
-        ("fajr", "Fajr"), ("sunrise", "Sunrise"), ("dhuhr", "Dhuhr"),
-        ("asr", "Asr"), ("maghrib", "Maghrib"), ("isha", "Isha"),
-    };
+    static readonly string[] Order = { "fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha" };
 
     record Row(string Label, string Time, bool IsNext, bool IsSunrise);
 
@@ -69,12 +66,13 @@ public class PrayerPopup : Form
         _anchorRight = anchorRight;
         BackColor = Theme.Panel;
         _city = city;
-        _date = date.ToString("dddd, dd MMM");
+        _date = Strings.FormatPopupDate(date);
         _countdown = countdown;
         _rows.Clear();
-        foreach (var (key, label) in Order)
+        foreach (var key in Order)
         {
             if (!times.TryGetValue(key, out var ts)) continue;
+            string label = Strings.Prayer(key);
             bool isNext = key == nextKey;
             if (isNext) _nextLabel = label;
             _rows.Add(new Row(label, Format(ts, use24), isNext, key == "sunrise"));
@@ -91,7 +89,7 @@ public class PrayerPopup : Form
     public static string Format(TimeSpan ts, bool use24)
     {
         var dt = DateTime.Today.Add(ts);
-        return use24 ? dt.ToString("HH:mm") : dt.ToString("h:mm tt");
+        return use24 ? dt.ToString("HH:mm") : $"{dt:h:mm} {Strings.AmPm(dt)}";
     }
 
     void Position()
@@ -151,6 +149,7 @@ public class PrayerPopup : Form
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         g.Clear(Theme.Panel);
 
+        bool rtl = Strings.IsRtl;
         float fs = Theme.FontScale;
         using var fCity = new Font(Theme.Family, 11f * fs, FontStyle.Bold);
         using var fDate = new Font(Theme.Family, 8.5f * fs, FontStyle.Regular);
@@ -158,22 +157,29 @@ public class PrayerPopup : Form
         using var fRowB = new Font(Theme.Family, 10.5f * fs, FontStyle.Bold);
         using var fChip = new Font(Theme.Family, 9f * fs, FontStyle.Bold);
 
-        using (var b = new SolidBrush(Theme.Text)) g.DrawString(_city, fCity, b, Pad, Scaled(12));
-        using (var b = new SolidBrush(Theme.TextDim)) g.DrawString(_date, fDate, b, Pad, Scaled(34));
+        var sfHdr = new StringFormat { Alignment = rtl ? StringAlignment.Far : StringAlignment.Near };
+        var hdrRect = new RectangleF(Pad, Scaled(12), Width - 2 * Pad, Scaled(22));
+        var dateRect = new RectangleF(Pad, Scaled(34), Width - 2 * Pad, Scaled(20));
+        using (var b = new SolidBrush(Theme.Text)) g.DrawString(_city, fCity, b, hdrRect, sfHdr);
+        using (var b = new SolidBrush(Theme.TextDim)) g.DrawString(_date, fDate, b, dateRect, sfHdr);
 
-        DrawPin(g);
+        DrawPin(g, rtl);
 
         if (!string.IsNullOrEmpty(_countdown))
         {
-            string chip = $"{_nextLabel} in {_countdown}";
+            string chip = $"{_nextLabel} {Strings.T("popup.in")} {_countdown}";
             var sz = g.MeasureString(chip, fChip);
-            var chipRect = new RectangleF(Width - Pad - sz.Width - Scaled(16), Scaled(34), sz.Width + Scaled(14), Scaled(22));
+            float chipW = sz.Width + Scaled(14);
+            float chipX = rtl ? Pad + Scaled(2) : Width - Pad - chipW - Scaled(2);
+            var chipRect = new RectangleF(chipX, Scaled(34), chipW, Scaled(22));
             using (var b = new SolidBrush(Theme.AccentSoft)) FillRounded(g, b, chipRect, Scaled(11));
             using (var b = new SolidBrush(Theme.Accent)) g.DrawString(chip, fChip, b, chipRect.X + Scaled(7), chipRect.Y + Scaled(3));
         }
 
         using (var p = new Pen(Color.FromArgb(60, 60, 64))) g.DrawLine(p, Pad, HeaderH - Scaled(6), Width - Pad, HeaderH - Scaled(6));
 
+        var sfLabel = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = rtl ? StringAlignment.Far : StringAlignment.Near };
+        var sfTime = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = rtl ? StringAlignment.Near : StringAlignment.Far };
         int y = HeaderH;
         foreach (var r in _rows)
         {
@@ -183,28 +189,27 @@ public class PrayerPopup : Form
                 using var b = new SolidBrush(Theme.AccentSoft);
                 FillRounded(g, b, rowRect, Scaled(10));
                 using var bar = new SolidBrush(Theme.Accent);
-                FillRounded(g, bar, new RectangleF(rowRect.X + 2, rowRect.Y + Scaled(7), 4, rowRect.Height - Scaled(14)), 2);
+                float barX = rtl ? rowRect.Right - Scaled(6) : rowRect.X + 2;
+                FillRounded(g, bar, new RectangleF(barX, rowRect.Y + Scaled(7), 4, rowRect.Height - Scaled(14)), 2);
             }
 
             Color fg = r.IsNext ? Theme.Accent : r.IsSunrise ? Theme.TextDim : Theme.Text;
             var font = r.IsNext ? fRowB : fRow;
-            var sf = new StringFormat { LineAlignment = StringAlignment.Center };
-            var sfR = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Far };
             var rect = new RectangleF(Pad + Scaled(6), y, Width - 2 * Pad - Scaled(6), RowH - Scaled(4));
             using (var b = new SolidBrush(fg))
             {
-                g.DrawString(r.Label, font, b, rect, sf);
-                g.DrawString(r.Time, font, b, rect, sfR);
+                g.DrawString(r.Label, font, b, rect, sfLabel);
+                g.DrawString(r.Time, font, b, rect, sfTime);
             }
             y += RowH;
         }
     }
 
-    // Thumbtack in the top-right corner; filled accent when pinned, hollow otherwise.
-    void DrawPin(Graphics g)
+    // Thumbtack in the top corner (right for LTR, left for RTL); filled accent when pinned, hollow otherwise.
+    void DrawPin(Graphics g, bool rtl)
     {
         int s = Scaled(18);
-        _pinBox = new Rectangle(Width - Pad - s, Scaled(11), s, s);
+        _pinBox = new Rectangle(rtl ? Pad : Width - Pad - s, Scaled(11), s, s);
         var c = _pinned ? Theme.Accent : Theme.TextDim;
         float hx = _pinBox.X + s * 0.5f, hy = _pinBox.Y + s * 0.34f, hr = s * 0.30f;
         using var pen = new Pen(c, Math.Max(1.4f, s * 0.10f));

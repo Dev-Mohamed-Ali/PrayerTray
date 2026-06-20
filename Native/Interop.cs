@@ -115,6 +115,12 @@ internal static class Interop
 
     public const int TME_LEAVE = 0x2;
 
+    // --- UI language ---
+    [DllImport("kernel32.dll")] static extern ushort GetUserDefaultUILanguage();
+    // LANG_ARABIC == 0x01 (low 10 bits of the LANGID); all Arabic sublanguages share it.
+    // Needed because InvariantGlobalization pins CurrentUICulture to invariant.
+    public static bool OsUiIsArabic() => (GetUserDefaultUILanguage() & 0x3FF) == 0x01;
+
     // --- DPI ---
     [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr h);
 

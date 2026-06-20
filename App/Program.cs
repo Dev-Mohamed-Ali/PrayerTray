@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Windows.Forms;
+using PrayerTray.I18n;
 
 namespace PrayerTray;
 
@@ -17,6 +18,10 @@ static class Program
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) => Report(e.Exception);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Report(e.ExceptionObject as Exception);
+
+        // WinForms throws in its WM_INPUTLANGCHANGE handler under InvariantGlobalization (InputLanguage
+        // .LanguageTag builds a CultureInfo). Swallow the post-change notice; the layout still switches.
+        Application.AddMessageFilter(new InputLangCrashGuard());
 
         ApplicationConfiguration.Initialize();
         Application.Run(new AppHost());
@@ -37,10 +42,16 @@ static class Program
 
         try
         {
-            MessageBox.Show("Prayer Tray hit an unexpected error and recovered.\n" +
-                "Details were written to %APPDATA%\\PrayerTray\\error.log.",
-                "Prayer Tray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            // May fire before AppHost initializes Strings — defaults to English, which is fine here.
+            MessageBox.Show(Strings.T("crash.body"), Strings.T("app.name"),
+                MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1, Strings.MsgOpts);
         }
         catch { /* no UI available */ }
+    }
+
+    // Drops WM_INPUTLANGCHANGE (0x0051) before WinForms' crashing handler sees it.
+    sealed class InputLangCrashGuard : IMessageFilter
+    {
+        public bool PreFilterMessage(ref Message m) => m.Msg == 0x0051;
     }
 }

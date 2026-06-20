@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 using PrayerTray.Calc;
 using PrayerTray.Config;
+using PrayerTray.I18n;
 using PrayerTray.Services;
 using PrayerTray.UI;
 
@@ -13,11 +14,7 @@ namespace PrayerTray;
 /// <summary>Owns the taskbar widget, tray icon, popup, timers, and notifications.</summary>
 public class AppHost : ApplicationContext
 {
-    static readonly (string key, string label)[] Order =
-    {
-        ("fajr", "Fajr"), ("sunrise", "Sunrise"), ("dhuhr", "Dhuhr"),
-        ("asr", "Asr"), ("maghrib", "Maghrib"), ("isha", "Isha"),
-    };
+    static readonly string[] Order = { "fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha" };
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     const string AppName = "PrayerTray";
 
@@ -41,6 +38,7 @@ public class AppHost : ApplicationContext
     {
         _ui = System.Threading.SynchronizationContext.Current ?? new System.Threading.SynchronizationContext();
         _cfg = AppConfig.Load();
+        Strings.Init(_cfg.Language);
         ApplyTheme();
         _widget = new TaskbarWidget(_cfg.MonitorDeviceName);
 
@@ -49,7 +47,7 @@ public class AppHost : ApplicationContext
         {
             Visible = true,
             Icon = LoadAppIcon(),
-            Text = "Prayer Tray",
+            Text = Strings.T("app.name"),
             ContextMenuStrip = menu,
         };
         _tray.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) TogglePopup(); };
@@ -106,15 +104,7 @@ public class AppHost : ApplicationContext
     async System.Threading.Tasks.Task FirstRunDetect()
     {
         var loc = await LocationService.DetectAsync();
-        _widget.Pause(); _pos.Stop(); _data.Stop();
-        try
-        {
-        using var form = new SettingsForm(_cfg, LivePreview, loc);
-        if (form.ShowDialog() == DialogResult.OK
-            && !DeviceEquals(_widget.DeviceName, _cfg.MonitorDeviceName))
-            RebuildWidget(); // monitor change is the only thing live preview defers
-        }
-        finally { _data.Start(); _pos.Start(); _widget.Resume(); }
+        RunSettings(loc);
     }
 
     // SystemEvents fire on a private hidden-window thread; marshal back to the UI thread.
@@ -170,18 +160,26 @@ public class AppHost : ApplicationContext
 
     ContextMenuStrip BuildMenu()
     {
-        var menu = new ContextMenuStrip();
-        menu.Items.Add("Show times", null, (_, _) => ShowPopup());
-        menu.Items.Add("Refresh now", null, (_, _) => RefreshNow());
+        var menu = new ContextMenuStrip { RightToLeft = Strings.IsRtl ? RightToLeft.Yes : RightToLeft.No };
+        menu.Items.Add(Strings.T("menu.showTimes"), null, (_, _) => ShowPopup());
+        menu.Items.Add(Strings.T("menu.refresh"), null, (_, _) => RefreshNow());
         menu.Items.Add(new ToolStripSeparator());
-        var startup = new ToolStripMenuItem("Start with Windows") { Checked = IsStartupEnabled() };
+        var startup = new ToolStripMenuItem(Strings.T("menu.startup")) { Checked = IsStartupEnabled() };
         startup.Click += (_, _) => { SetStartup(!startup.Checked); startup.Checked = IsStartupEnabled(); };
         menu.Items.Add(startup);
-        menu.Items.Add("Settings…", null, (_, _) => OpenSettings());
-        menu.Items.Add("Stop sound", null, (_, _) => AudioPlayer.Stop());
+        menu.Items.Add(Strings.T("menu.settings"), null, (_, _) => OpenSettings());
+        menu.Items.Add(Strings.T("menu.stopSound"), null, (_, _) => AudioPlayer.Stop());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => ExitApp());
+        menu.Items.Add(Strings.T("menu.exit"), null, (_, _) => ExitApp());
         return menu;
+    }
+
+    // Rebuild the tray menu after a language change (menu items are created once, in BuildMenu).
+    void RebuildMenu()
+    {
+        var old = _tray.ContextMenuStrip;
+        _tray.ContextMenuStrip = BuildMenu();
+        old?.Dispose();
     }
 
     void TogglePopup()
@@ -194,19 +192,32 @@ public class AppHost : ApplicationContext
     {
         EnsureToday();
         var (nextKey, _, countdown) = CurrentOrNext();
-        _popup.ShowTimes(_cfg.City, DateTime.Today, _times, nextKey, _cfg.Use24Hour, countdown,
+        _popup.ShowTimes(_cfg.City, DateTime.Today, _times, nextKey, _cfg.Use24Hour, ShownCountdown(countdown),
             _widget.ScreenRect, _widget.AnchorRight);
     }
 
-    void OpenSettings()
+    void OpenSettings() => RunSettings(null);
+
+    // Reopen-loop: a language change closes the dialog with Retry so it rebuilds in the new language/RTL.
+    // The opening snapshot is carried across reopens so Cancel still reverts to the true original.
+    void RunSettings(DetectedLocation? prefill)
     {
         _widget.Pause(); _pos.Stop(); _data.Stop();
         try
         {
-        using var form = new SettingsForm(_cfg, LivePreview);
-        if (form.ShowDialog() == DialogResult.OK
-            && !DeviceEquals(_widget.DeviceName, _cfg.MonitorDeviceName))
-            RebuildWidget(); // monitor change is the only thing live preview defers
+            var orig = _cfg.Clone();
+            bool restart;
+            do
+            {
+                using var form = new SettingsForm(_cfg, LivePreview, prefill, orig);
+                var result = form.ShowDialog();
+                restart = form.RestartRequested;
+                prefill = null; // only apply detected prefill on the first open
+                RebuildMenu();  // language may have changed
+                if (!restart && result == DialogResult.OK
+                    && !DeviceEquals(_widget.DeviceName, _cfg.MonitorDeviceName))
+                    RebuildWidget(); // monitor change is the only thing live preview defers
+            } while (restart);
         }
         finally { _data.Start(); _pos.Start(); _widget.Resume(); }
     }
@@ -240,17 +251,22 @@ public class AppHost : ApplicationContext
         EnsureToday();
         var (nextKey, at, countdown) = CurrentOrNext();
         _nextAt = at;
+        bool isNow = countdown == "now";
         string label = nextKey is null ? "?" : LabelOf(nextKey);
         string timeStr = nextKey is null || !_times.TryGetValue(nextKey, out var ts)
             ? "" : PrayerPopup.Format(ts, _cfg.Use24Hour);
 
-        _widget.SetData(label, timeStr, countdown);
-        _tray.Text = Trunc(countdown == "now"
-            ? $"Now: {label} {timeStr}"
-            : $"Next: {label} {timeStr} (in {countdown})");
+        _widget.SetData(label, timeStr, ShownCountdown(countdown));
+        _tray.Text = Trunc(isNow
+            ? $"{Strings.T("tray.now")} {label} {timeStr}"
+            : $"{Strings.T("tray.next")} {label} {timeStr} ({Strings.T("tray.in")} {countdown})");
 
         if (_popup.Visible) ShowPopup();
     }
+
+    // Map the internal "now" sentinel to a localized word; pass other countdowns ("12m"/"45s") through.
+    static string ShownCountdown(string countdown) =>
+        countdown == "now" ? Strings.T("countdown.now") : countdown;
 
     // Edge-triggered, day-aware: each reminder/azan fires once, within the fire window of its minute (tick = 15s).
     void CheckNotification()
@@ -258,24 +274,25 @@ public class AppHost : ApplicationContext
         var now = DateTime.Now;
         if (_firedDate != DateTime.Today) { _fired.Clear(); _firedDate = DateTime.Today; }
 
-        foreach (var (key, label) in Order)
+        foreach (var key in Order)
         {
             if (key == "sunrise" || !_times.TryGetValue(key, out var ts)) continue;
             var at = DateTime.Today.Add(ts);
+            string label = Strings.Prayer(key);
             try
             {
                 if (_cfg.ReminderEnabled && InWindow(now, at.AddMinutes(-_cfg.ReminderMinutes))
                     && _fired.Add($"{now:yyyyMMdd}:{key}:rem"))
                 {
-                    _tray.ShowBalloonTip(8000, "Prayer reminder",
-                        $"{label} in {_cfg.ReminderMinutes} min ({PrayerPopup.Format(ts, _cfg.Use24Hour)})", ToolTipIcon.Info);
+                    _tray.ShowBalloonTip(8000, Strings.T("balloon.reminderTitle"),
+                        Strings.F("balloon.reminderBody", label, _cfg.ReminderMinutes, PrayerPopup.Format(ts, _cfg.Use24Hour)), ToolTipIcon.Info);
                     if (_cfg.ReminderSound) AudioPlayer.PlayReminder(_cfg);
                 }
 
                 if (InWindow(now, at) && _fired.Add($"{now:yyyyMMdd}:{key}"))
                 {
-                    _tray.ShowBalloonTip(8000, "Prayer time",
-                        $"It is now {label} ({PrayerPopup.Format(ts, _cfg.Use24Hour)})", ToolTipIcon.Info);
+                    _tray.ShowBalloonTip(8000, Strings.T("balloon.timeTitle"),
+                        Strings.F("balloon.timeBody", label, PrayerPopup.Format(ts, _cfg.Use24Hour)), ToolTipIcon.Info);
                     PlayAzan();
                 }
             }
@@ -309,7 +326,7 @@ public class AppHost : ApplicationContext
     (string? key, DateTime? at, string countdown) CurrentOrNext()
     {
         var now = DateTime.Now;
-        foreach (var (key, _) in Order)
+        foreach (var key in Order)
         {
             if (key == "sunrise" || !_times.TryGetValue(key, out var ts)) continue;
             var at = DateTime.Today.Add(ts);
@@ -325,16 +342,12 @@ public class AppHost : ApplicationContext
 
     static string FormatCountdown(TimeSpan span)
     {
-        if (span.TotalSeconds < 60) return $"{Math.Max(0, (int)span.TotalSeconds)}s";
-        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m";
+        if (span.TotalSeconds < 60) return $"{Math.Max(0, (int)span.TotalSeconds)}{Strings.T("unit.s")}";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}{Strings.T("unit.m")}";
         return $"{(int)span.TotalHours}:{span.Minutes:00}";
     }
 
-    static string LabelOf(string key)
-    {
-        foreach (var (k, l) in Order) if (k == key) return l;
-        return key;
-    }
+    static string LabelOf(string key) => Strings.Prayer(key);
 
     static string Trunc(string s) => s.Length <= 127 ? s : s[..127];
 

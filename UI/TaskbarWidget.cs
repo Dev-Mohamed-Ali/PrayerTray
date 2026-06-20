@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using PrayerTray.I18n;
 using PrayerTray.Native;
 
 namespace PrayerTray.UI;
@@ -209,14 +210,31 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
 
         int cy = _h / 2;
         int dotD = S(8);
-        using (var b = new SolidBrush(Theme.Accent))
-            g.FillEllipse(b, S(12), cy - dotD / 2, dotD, dotD);
-
         using var fMain = MainFont();
         using var fCount = CountFont();
-        var sf = new StringFormat { LineAlignment = StringAlignment.Center };
-
         string left = $"{_name}  {_time}".Trim();
+
+        if (Strings.IsRtl)
+        {
+            // Mirror: dot at the right, content flows right-to-left.
+            using (var b = new SolidBrush(Theme.Accent))
+                g.FillEllipse(b, _w - S(12) - dotD, cy - dotD / 2, dotD, dotD);
+            var far = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Far };
+            float xr = _w - S(12) - dotD - S(8);
+            using (var b = new SolidBrush(Theme.Text))
+                g.DrawString(left, fMain, b, new RectangleF(0, 0, xr, _h), far);
+            xr -= _measure.MeasureString(left, fMain).Width + S(8);
+            using (var b = new SolidBrush(Theme.TextDim))
+                g.DrawString("·", fMain, b, new RectangleF(0, 0, xr, _h), far);
+            xr -= S(6) + S(8);
+            using (var b = new SolidBrush(Theme.Good))
+                g.DrawString(_count, fCount, b, new RectangleF(0, 0, xr, _h), far);
+            return;
+        }
+
+        using (var b = new SolidBrush(Theme.Accent))
+            g.FillEllipse(b, S(12), cy - dotD / 2, dotD, dotD);
+        var sf = new StringFormat { LineAlignment = StringAlignment.Center };
         float x = S(12) + dotD + S(8);
         using (var b = new SolidBrush(Theme.Text))
             g.DrawString(left, fMain, b, new RectangleF(x, 0, _w, _h), sf);

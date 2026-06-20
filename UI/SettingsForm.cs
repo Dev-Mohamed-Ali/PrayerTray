@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Windows.Forms;
 using PrayerTray.Calc;
 using PrayerTray.Config;
+using PrayerTray.I18n;
 using PrayerTray.Native;
 using PrayerTray.Services;
 
@@ -22,50 +23,57 @@ public class SettingsForm : Form
 
     readonly TextBox _city = new() { Width = 200 };
 #if !MANUAL_ONLY
-    readonly Button _detect = new() { Text = "Detect", Width = 64, Margin = new Padding(4, 0, 0, 0) };
+    readonly Button _detect = new() { Text = Strings.T("btn.detect"), Width = 64, Margin = new Padding(4, 0, 0, 0) };
 #endif
-    readonly Button _openMap = new() { Text = "Open Maps", AutoSize = true };
-    readonly TextBox _paste = new() { Width = 200, PlaceholderText = "lat, lng or map link" };
-    readonly Button _setPaste = new() { Text = "Set", Width = 64, Margin = new Padding(4, 0, 0, 0) };
+    readonly Button _openMap = new() { Text = Strings.T("btn.openMaps"), AutoSize = true };
+    readonly TextBox _paste = new() { Width = 200, PlaceholderText = Strings.T("ph.paste") };
+    readonly Button _setPaste = new() { Text = Strings.T("btn.set"), Width = 64, Margin = new Padding(4, 0, 0, 0) };
     readonly TextBox _lat = new() { Width = 200 };
     readonly TextBox _lng = new() { Width = 200 };
     readonly ComboBox _method = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly ComboBox _asr = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly ComboBox _position = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly TextBox _offset = new() { Width = 200 };
+    readonly ComboBox _language = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly ComboBox _theme = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly ComboBox _font = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly ComboBox _fontSize = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly ComboBox _monitor = new() { Width = 240, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly List<DisplayInfo> _displays = Displays.All();
-    readonly CheckBox _h24 = new() { Text = "Use 24-hour clock", AutoSize = true };
-    readonly CheckBox _hideFs = new() { Text = "Hide over fullscreen apps", AutoSize = true };
+    readonly CheckBox _h24 = new() { Text = Strings.T("chk.use24"), AutoSize = true };
+    readonly CheckBox _hideFs = new() { Text = Strings.T("chk.hideFs"), AutoSize = true };
 
-    readonly CheckBox _remEnable = new() { Text = "Remind me before each prayer", AutoSize = true };
+    readonly CheckBox _remEnable = new() { Text = Strings.T("chk.remind"), AutoSize = true };
     readonly NumericUpDown _remMins = new() { Width = 90, Minimum = 1, Maximum = 60 };
-    readonly CheckBox _remSound = new() { Text = "Play a sound", AutoSize = true };
+    readonly CheckBox _remSound = new() { Text = Strings.T("chk.playSound"), AutoSize = true };
     readonly ComboBox _remSoundCombo = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
-    readonly TextBox _remFile = new() { Width = 160, PlaceholderText = "custom file" };
+    readonly TextBox _remFile = new() { Width = 160, PlaceholderText = Strings.T("ph.customFile") };
     readonly Button _remBrowse = new() { Text = "…", Width = 30, Margin = new Padding(4, 0, 0, 0) };
-    readonly Button _remTest = new() { Text = "Test", Width = 50, Margin = new Padding(4, 0, 0, 0) };
+    readonly Button _remTest = new() { Text = Strings.T("btn.test"), Width = 50, Margin = new Padding(4, 0, 0, 0) };
     readonly ComboBox _azan = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly TextBox _azanFile = new() { Width = 160, PlaceholderText = ".mp3 / .wav" };
     readonly Button _azanBrowse = new() { Text = "…", Width = 30, Margin = new Padding(4, 0, 0, 0) };
-    readonly Button _azanTest = new() { Text = "Test", Width = 50 };
-    readonly Button _azanStop = new() { Text = "Stop", Width = 50, Margin = new Padding(4, 0, 0, 0) };
+    readonly Button _azanTest = new() { Text = Strings.T("btn.test"), Width = 50 };
+    readonly Button _azanStop = new() { Text = Strings.T("btn.stop"), Width = 50, Margin = new Padding(4, 0, 0, 0) };
 
     readonly List<string> _remSoundIds = new();
     readonly List<string> _azanIds = new();
+    readonly List<string> _langIds = new();
     readonly List<Panel> _cards = new();
     static readonly int[] SizeSteps = { 80, 90, 100, 110, 125, 150 };
 
-    public SettingsForm(AppConfig cfg, Action? livePreview = null, DetectedLocation? prefill = null)
+    /// <summary>Set when the user changes language; the host reopens the dialog so it rebuilds in the new
+    /// language/direction (strings + RTL are fixed at construction).</summary>
+    public bool RestartRequested { get; private set; }
+
+    public SettingsForm(AppConfig cfg, Action? livePreview = null, DetectedLocation? prefill = null, AppConfig? snapshotOverride = null)
     {
         _cfg = cfg;
-        _snapshot = cfg.Clone();
+        _snapshot = snapshotOverride ?? cfg.Clone();
         _live = livePreview;
 
-        Text = "Prayer Tray — Settings";
+        Text = Strings.T("settings.title");
+        if (Strings.IsRtl) { RightToLeft = RightToLeft.Yes; RightToLeftLayout = true; }
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false; MinimizeBox = false;
@@ -81,70 +89,76 @@ public class SettingsForm : Form
 #if !MANUAL_ONLY
         cityRow.Controls.Add(_detect);
 #endif
-        AddRow(locBody, "City (label):", cityRow);
-        AddRow(locBody, "Latitude:", _lat);
-        AddRow(locBody, "Longitude:", _lng);
-        AddRow(locBody, "Pick on map:", _openMap);
-        AddRow(locBody, "Paste result:", Row(_paste, _setPaste));
+        AddRow(locBody, Strings.T("label.city"), cityRow);
+        AddRow(locBody, Strings.T("label.lat"), _lat);
+        AddRow(locBody, Strings.T("label.lng"), _lng);
+        AddRow(locBody, Strings.T("label.pickMap"), _openMap);
+        AddRow(locBody, Strings.T("label.pasteResult"), Row(_paste, _setPaste));
 
         // --- Calculation card ---
         var calcBody = Body();
-        AddRow(calcBody, "Method:", _method);
-        AddRow(calcBody, "Asr:", _asr);
+        AddRow(calcBody, Strings.T("label.method"), _method);
+        AddRow(calcBody, Strings.T("label.asr"), _asr);
 
         // --- Appearance card ---
         var appBody = Body();
-        AddRow(appBody, "Theme:", _theme);
-        AddRow(appBody, "Font:", _font);
-        AddRow(appBody, "Font size:", _fontSize);
-        AddRow(appBody, "Widget side:", _position);
-        AddRow(appBody, "Widget gap (px):", _offset);
-        AddRow(appBody, "Monitor:", _monitor);
+        AddRow(appBody, Strings.T("label.language"), _language);
+        AddRow(appBody, Strings.T("label.theme"), _theme);
+        AddRow(appBody, Strings.T("label.font"), _font);
+        AddRow(appBody, Strings.T("label.fontSize"), _fontSize);
+        AddRow(appBody, Strings.T("label.widgetSide"), _position);
+        AddRow(appBody, Strings.T("label.widgetGap"), _offset);
+        AddRow(appBody, Strings.T("label.monitor"), _monitor);
         AddSpan(appBody, _h24);
         AddSpan(appBody, _hideFs);
 
         // --- Notifications card ---
         var notifBody = Body();
         AddSpan(notifBody, _remEnable);
-        AddRow(notifBody, "Minutes before:", _remMins);
+        AddRow(notifBody, Strings.T("label.minutesBefore"), _remMins);
         AddSpan(notifBody, _remSound);
-        AddRow(notifBody, "Sound:", _remSoundCombo);
-        AddRow(notifBody, "Custom file:", Row(_remFile, _remBrowse, _remTest));
-        AddRow(notifBody, "Azan:", _azan);
-        AddRow(notifBody, "Azan file:", Row(_azanFile, _azanBrowse));
+        AddRow(notifBody, Strings.T("label.sound"), _remSoundCombo);
+        AddRow(notifBody, Strings.T("label.customFile"), Row(_remFile, _remBrowse, _remTest));
+        AddRow(notifBody, Strings.T("label.azan"), _azan);
+        AddRow(notifBody, Strings.T("label.azanFile"), Row(_azanFile, _azanBrowse));
         AddRow(notifBody, "", Row(_azanTest, _azanStop));
 
         var grid = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = new Padding(0) };
-        grid.Controls.Add(Card("Location", locBody), 0, 0);
-        grid.Controls.Add(Card("Calculation", calcBody), 0, 1);
-        grid.Controls.Add(Card("Appearance", appBody), 1, 0);
-        grid.Controls.Add(Card("Notifications", notifBody), 1, 1);
+        grid.Controls.Add(Card(Strings.T("card.location"), locBody), 0, 0);
+        grid.Controls.Add(Card(Strings.T("card.calculation"), calcBody), 0, 1);
+        grid.Controls.Add(Card(Strings.T("card.appearance"), appBody), 1, 0);
+        grid.Controls.Add(Card(Strings.T("card.notifications"), notifBody), 1, 1);
 
         // --- items ---
+        // Calculation-method names are org/proper nouns -> not localized.
         foreach (var (key, m) in CalcMethod.All) _method.Items.Add($"{key} — {m.Name}");
-        _asr.Items.Add("Standard (Shafi'i, Maliki, Hanbali)");
-        _asr.Items.Add("Hanafi");
-        _position.Items.Add("Right (near the clock)");
-        _position.Items.Add("Left (corner)");
+        _asr.Items.Add(Strings.T("asr.standard"));
+        _asr.Items.Add(Strings.T("asr.hanafi"));
+        _position.Items.Add(Strings.T("side.right"));
+        _position.Items.Add(Strings.T("side.left"));
+        _langIds.Add("auto"); _language.Items.Add(Strings.T("lang.auto"));
+        _langIds.Add("en"); _language.Items.Add("English");
+        _langIds.Add("ar"); _language.Items.Add("العربية");
         foreach (var name in Theme.Names) _theme.Items.Add(name);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var f in FontFamily.Families) if (seen.Add(f.Name)) _font.Items.Add(f.Name);
         foreach (var n in SizeSteps) _fontSize.Items.Add($"{n}%");
         foreach (var d in _displays)
-            _monitor.Items.Add($"{d.FriendlyName} ({d.Bounds.Width}x{d.Bounds.Height}){(d.Primary ? " — Primary" : "")}");
-        foreach (var (id, label) in AudioPlayer.ReminderSounds) { _remSoundIds.Add(id); _remSoundCombo.Items.Add(label); }
-        _remSoundIds.Add("custom"); _remSoundCombo.Items.Add("Custom file…");
-        _azanIds.Add("None"); _azan.Items.Add("Off");
-        foreach (var (id, label) in AudioPlayer.BuiltinAdhans) { _azanIds.Add(id); _azan.Items.Add(label); }
-        _azanIds.Add("Custom"); _azan.Items.Add("Custom file…");
+            _monitor.Items.Add($"{d.FriendlyName} ({d.Bounds.Width}x{d.Bounds.Height}){(d.Primary ? Strings.T("monitor.primary") : "")}");
+        foreach (var (id, _) in AudioPlayer.ReminderSounds) { _remSoundIds.Add(id); _remSoundCombo.Items.Add(Strings.T("sound." + id)); }
+        _remSoundIds.Add("custom"); _remSoundCombo.Items.Add(Strings.T("combo.customFile"));
+        _azanIds.Add("None"); _azan.Items.Add(Strings.T("azan.off"));
+        foreach (var (id, _) in AudioPlayer.BuiltinAdhans) { _azanIds.Add(id); _azan.Items.Add(Strings.T("adhan." + id)); }
+        _azanIds.Add("Custom"); _azan.Items.Add(Strings.T("combo.customFile"));
 
         LoadValues();
         if (prefill != null) ApplyDetected(prefill);
 
-        var ok = new Button { Text = "Save", DialogResult = DialogResult.OK, Width = 90, Height = 30, Margin = new Padding(6, 0, 0, 0) };
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 90, Height = 30 };
+        var ok = new Button { Text = Strings.T("btn.save"), DialogResult = DialogResult.OK, Width = 90, Height = 30, Margin = new Padding(6, 0, 0, 0) };
+        var cancel = new Button { Text = Strings.T("btn.cancel"), DialogResult = DialogResult.Cancel, Width = 90, Height = 30 };
         ok.Click += OnSave;
-        var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(8) };
+        // RightToLeftLayout already mirrors the panel, so flip the flow back to keep Save on the inner side.
+        var buttons = new FlowLayoutPanel { FlowDirection = Strings.IsRtl ? FlowDirection.LeftToRight : FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(8) };
         buttons.Controls.Add(ok);
         buttons.Controls.Add(cancel);
 
@@ -163,7 +177,13 @@ public class SettingsForm : Form
         FormClosing += (_, _) =>
         {
             AudioPlayer.Stop();
-            if (DialogResult != DialogResult.OK) { _cfg.CopyFrom(_snapshot); _live?.Invoke(); }
+            // A language restart (Retry) keeps the in-progress config; only a real Cancel reverts.
+            if (DialogResult != DialogResult.OK && !RestartRequested)
+            {
+                _cfg.CopyFrom(_snapshot);
+                Strings.Set(_cfg.Language); // restore direction/language if it was changed this session
+                _live?.Invoke();
+            }
         };
     }
 
@@ -182,6 +202,7 @@ public class SettingsForm : Form
         _asr.SelectedIndex = _cfg.Asr == (int)AsrJuristic.Hanafi ? 1 : 0;
         _position.SelectedIndex = string.Equals(_cfg.WidgetAnchor, "Left", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
         _offset.Text = _cfg.WidgetOffset.ToString(CultureInfo.InvariantCulture);
+        int li = _langIds.IndexOf(_cfg.Language); _language.SelectedIndex = li < 0 ? 0 : li;
         _theme.SelectedIndex = Math.Max(0, Array.IndexOf(Theme.Names, _cfg.Theme));
         _font.SelectedItem = _cfg.FontFamily;
         if (_font.SelectedIndex < 0) _font.Text = _cfg.FontFamily;
@@ -208,6 +229,7 @@ public class SettingsForm : Form
     // Visual settings preview live; text fields apply on validated leave; audio settings only on Save.
     void WireEvents()
     {
+        _language.SelectedIndexChanged += (_, _) => OnLanguageChanged();
         _theme.SelectedIndexChanged += (_, _) => Live(() => _cfg.Theme = Theme.Names[_theme.SelectedIndex]);
         _font.SelectedIndexChanged += (_, _) => Live(() => { if (_font.SelectedItem is string f) _cfg.FontFamily = f; });
         _fontSize.SelectedIndexChanged += (_, _) => Live(() => _cfg.FontScalePct = SizeSteps[_fontSize.SelectedIndex]);
@@ -243,6 +265,20 @@ public class SettingsForm : Form
         if (!_ready) return;
         set();
         _live?.Invoke();
+    }
+
+    // Language is a structural change (strings + RTL are fixed at construction): apply it, then ask the
+    // host to reopen the dialog so it rebuilds in the new language.
+    void OnLanguageChanged()
+    {
+        if (!_ready) return;
+        string id = _langIds[Math.Max(0, _language.SelectedIndex)];
+        if (id == _cfg.Language) return;
+        _cfg.Language = id;
+        Strings.Set(id);
+        _live?.Invoke();          // pill/popup follow immediately
+        RestartRequested = true;
+        DialogResult = DialogResult.Retry; // closes; host reopens
     }
 
     bool TryLat(out double v) => double.TryParse(_lat.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out v) && v >= -90 && v <= 90;
@@ -290,11 +326,10 @@ public class SettingsForm : Form
         {
             var loc = await LocationService.DetectAsync();
             if (loc == null)
-                MessageBox.Show(this, "Couldn't detect location — enter it manually.",
-                    "Detect location", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Msg(Strings.T("msg.detectFail"), Strings.T("msg.detectCaption"), MessageBoxIcon.Information);
             else ApplyDetected(loc);
         }
-        finally { _detect.Enabled = true; _detect.Text = "Detect"; }
+        finally { _detect.Enabled = true; _detect.Text = Strings.T("btn.detect"); }
     }
 #endif
 
@@ -316,9 +351,7 @@ public class SettingsForm : Form
         var loc = await LocationService.ParseAsync(_paste.Text);
         if (loc == null)
         {
-            MessageBox.Show(this, "Couldn't read coordinates. Right-click your spot in Google Maps, click the\n" +
-                "lat/lng to copy them, and paste here — or paste the map's address-bar URL.",
-                "Paste result", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Msg(Strings.T("msg.pasteFail"), Strings.T("msg.pasteCaption"), MessageBoxIcon.Information);
             return;
         }
         ApplyDetected(loc);
@@ -329,7 +362,7 @@ public class SettingsForm : Form
         _lat.Text = loc.Lat.ToString(CultureInfo.InvariantCulture);
         _lng.Text = loc.Lng.ToString(CultureInfo.InvariantCulture);
         if (!string.IsNullOrWhiteSpace(loc.City)) _city.Text = loc.City;
-        else if (string.IsNullOrWhiteSpace(_city.Text)) _city.Text = "My location";
+        else if (string.IsNullOrWhiteSpace(_city.Text)) _city.Text = Strings.T("city.myLocation");
         _method.SelectedIndex = Math.Max(0, IndexOfMethod(LocationService.MethodForCountry(loc.CountryIso)));
         Live(() => { if (TryLat(out var la)) _cfg.Latitude = la; if (TryLng(out var lo)) _cfg.Longitude = lo; });
     }
@@ -350,11 +383,11 @@ public class SettingsForm : Form
 
     void OnSave(object? sender, EventArgs e)
     {
-        if (!TryLat(out var lat)) { Warn("Latitude must be a number between -90 and 90."); return; }
-        if (!TryLng(out var lng)) { Warn("Longitude must be a number between -180 and 180."); return; }
+        if (!TryLat(out var lat)) { Warn(Strings.T("msg.latRange")); return; }
+        if (!TryLng(out var lng)) { Warn(Strings.T("msg.lngRange")); return; }
         string azanMode = _azanIds[Math.Max(0, _azan.SelectedIndex)];
         if (azanMode == "Custom" && string.IsNullOrWhiteSpace(_azanFile.Text))
-        { Warn("Pick an azan audio file, or set Azan to Off."); return; }
+        { Warn(Strings.T("msg.azanFile")); return; }
 
         _cfg.City = string.IsNullOrWhiteSpace(_city.Text) ? "Custom" : _city.Text.Trim();
         _cfg.Latitude = lat; _cfg.Longitude = lng;
@@ -385,8 +418,11 @@ public class SettingsForm : Form
     void Warn(string msg)
     {
         DialogResult = DialogResult.None;
-        MessageBox.Show(this, msg, "Invalid input", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        Msg(msg, Strings.T("msg.invalidCaption"), MessageBoxIcon.Warning);
     }
+
+    DialogResult Msg(string text, string caption, MessageBoxIcon icon) =>
+        MessageBox.Show(this, text, caption, MessageBoxButtons.OK, icon, MessageBoxDefaultButton.Button1, Strings.MsgOpts);
 
     // --- layout helpers ---
     static FlowLayoutPanel Row(params Control[] controls)
@@ -439,7 +475,7 @@ public class SettingsForm : Form
     // --- theming ---
     void Stylize()
     {
-        foreach (var cb in new[] { _method, _asr, _position, _theme, _font, _fontSize, _monitor, _remSoundCombo, _azan }) StyleCombo(cb);
+        foreach (var cb in new[] { _method, _asr, _position, _language, _theme, _font, _fontSize, _monitor, _remSoundCombo, _azan }) StyleCombo(cb);
         foreach (var tb in new[] { _city, _paste, _lat, _lng, _offset, _remFile, _azanFile }) StyleText(tb);
         foreach (var ck in new[] { _h24, _hideFs, _remEnable, _remSound }) StyleCheck(ck);
         StyleNumeric(_remMins);
@@ -455,6 +491,7 @@ public class SettingsForm : Form
         c.FlatStyle = FlatStyle.Flat;
         c.BackColor = Theme.BgHover;
         c.ForeColor = Theme.Text;
+        if (Strings.IsRtl) c.RightToLeft = RightToLeft.Yes;
         c.DrawMode = DrawMode.OwnerDrawFixed;
         c.DrawItem += ComboDraw;
     }
@@ -464,9 +501,12 @@ public class SettingsForm : Form
         var c = (ComboBox)sender!;
         bool sel = (e.State & DrawItemState.Selected) != 0;
         using (var bg = new SolidBrush(sel ? Theme.AccentSoft : Theme.BgHover)) e.Graphics.FillRectangle(bg, e.Bounds);
-        if (e.Index >= 0)
-            using (var b = new SolidBrush(Theme.Text))
-                e.Graphics.DrawString(c.Items[e.Index]?.ToString(), e.Font ?? c.Font, b, e.Bounds.X + 1, e.Bounds.Y + 1);
+        if (e.Index < 0) return;
+        var sf = new StringFormat { LineAlignment = StringAlignment.Center };
+        if (Strings.IsRtl) sf.Alignment = StringAlignment.Far;
+        var rect = new RectangleF(e.Bounds.X + 2, e.Bounds.Y, e.Bounds.Width - 4, e.Bounds.Height);
+        using var b = new SolidBrush(Theme.Text);
+        e.Graphics.DrawString(c.Items[e.Index]?.ToString(), e.Font ?? c.Font, b, rect, sf);
     }
 
     static void StyleText(TextBox t) { t.BorderStyle = BorderStyle.FixedSingle; t.BackColor = Theme.BgHover; t.ForeColor = Theme.Text; }
