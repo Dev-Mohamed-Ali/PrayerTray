@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Self-contained, compressed single file — runs on Win10 1809+/Win11 with nothing installed.
+      - name: Publish autodetect (self-contained)
+        run: >
+          dotnet publish PrayerTray.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none
+          -o publish/auto
+
+      # Framework-dependent single file — tiny; needs the .NET 8 Desktop Runtime.
+      - name: Publish manual (framework-dependent)
+        run: >
+          dotnet publish PrayerTray.csproj -c Release -p:ManualOnly=true -r win-x64 --self-contained false
+          -p:PublishSingleFile=true -p:DebugType=none
+          -o publish/manual
+
+      - name: Stage release assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item publish/auto/PrayerTray.exe release/PrayerTray-autodetect-win-x64.exe
+          Copy-Item publish/manual/PrayerTray.exe release/PrayerTray-manual-win-x64.exe
+          Get-ChildItem release | Select-Object Name, Length
+
+      # Manual runs (no tag): just upload artifacts so the build is still verifiable.
+      - name: Upload build artifacts
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrayerTray-exes
+          path: release/*.exe
+
+      # Tag pushes: cut the GitHub release with auto-generated notes + both assets.
+      - name: Publish GitHub release
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release/PrayerTray-autodetect-win-x64.exe
+            release/PrayerTray-manual-win-x64.exe

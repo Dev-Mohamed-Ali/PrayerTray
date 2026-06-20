@@ -34,9 +34,11 @@ public class AppHost : ApplicationContext
     DateTime _popupHiddenAt = DateTime.MinValue;
     readonly HashSet<string> _fired = new();   // reminder/azan ids already fired today
     DateTime _firedDate = DateTime.MinValue;
+    readonly System.Threading.SynchronizationContext _ui;
 
     public AppHost()
     {
+        _ui = System.Threading.SynchronizationContext.Current ?? new System.Threading.SynchronizationContext();
         _cfg = AppConfig.Load();
         ApplyTheme();
         _widget = new TaskbarWidget(_cfg.MonitorDeviceName);
@@ -58,6 +60,8 @@ public class AppHost : ApplicationContext
         _popup.Moved += (x, y) => { _cfg.PopupX = x; _cfg.PopupY = y; _cfg.Save(); };
         _watcher.Recreated += RebuildWidget;
         _watcher.ThemeChanged += OnSystemThemeChanged;
+        SystemEvents.TimeChanged += OnTimeChanged;
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         _data.Tick += (_, _) => DataTick();
         _pos.Tick += (_, _) => _widget.Tick();
@@ -86,7 +90,7 @@ public class AppHost : ApplicationContext
         ApplyTheme();
         ApplyWidgetConfig();
         Recompute();
-        DataTick();
+        RenderTick(); // display only — never fire azan/balloon from a settings change
         _widget.PreviewReposition();
     }
 
@@ -110,6 +114,19 @@ public class AppHost : ApplicationContext
             RebuildWidget(); // monitor change is the only thing live preview defers
         }
         finally { _data.Start(); _pos.Start(); _widget.Resume(); }
+    }
+
+    // SystemEvents fire on a private hidden-window thread; marshal back to the UI thread.
+    void OnTimeChanged(object? s, EventArgs e) => _ui.Post(_ => RefreshNow(), null);
+    void OnPowerModeChanged(object? s, PowerModeChangedEventArgs e)
+    { if (e.Mode == PowerModes.Resume) _ui.Post(_ => RefreshNow(), null); }
+
+    // Recompute and re-arm after a clock/timezone change, resume-from-sleep, or manual "Refresh now".
+    void RefreshNow()
+    {
+        Recompute();
+        _fired.Clear(); _firedDate = DateTime.Today;
+        DataTick();
     }
 
     // Live-follow Windows' light/dark flip, but only when the user left the theme on "Auto".
@@ -154,6 +171,7 @@ public class AppHost : ApplicationContext
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Show times", null, (_, _) => ShowPopup());
+        menu.Items.Add("Refresh now", null, (_, _) => RefreshNow());
         menu.Items.Add(new ToolStripSeparator());
         var startup = new ToolStripMenuItem("Start with Windows") { Checked = IsStartupEnabled() };
         startup.Click += (_, _) => { SetStartup(!startup.Checked); startup.Checked = IsStartupEnabled(); };
@@ -174,7 +192,7 @@ public class AppHost : ApplicationContext
     void ShowPopup()
     {
         EnsureToday();
-        var (nextKey, _, countdown) = NextPrayer();
+        var (nextKey, _, countdown) = CurrentOrNext();
         _popup.ShowTimes(_cfg.City, DateTime.Today, _times, nextKey, _cfg.Use24Hour, countdown,
             _widget.ScreenRect, _widget.AnchorRight);
     }
@@ -202,21 +220,26 @@ public class AppHost : ApplicationContext
 
     void EnsureToday() { if (_timesDate != DateTime.Today || _times.Count == 0) Recompute(); }
 
-    void DataTick()
+    void DataTick() { RenderTick(); CheckNotification(); }
+
+    // Display-only refresh (no notifications) — safe to call from Settings live preview.
+    void RenderTick()
     {
         EnsureToday();
-        var (nextKey, _, countdown) = NextPrayer();
+        var (nextKey, _, countdown) = CurrentOrNext();
         string label = nextKey is null ? "?" : LabelOf(nextKey);
-        string timeStr = nextKey is null ? "" : PrayerPopup.Format(_times[nextKey], _cfg.Use24Hour);
+        string timeStr = nextKey is null || !_times.TryGetValue(nextKey, out var ts)
+            ? "" : PrayerPopup.Format(ts, _cfg.Use24Hour);
 
         _widget.SetData(label, timeStr, countdown);
-        _tray.Text = Trunc($"Next: {label} {timeStr} (in {countdown})");
+        _tray.Text = Trunc(countdown == "now"
+            ? $"Now: {label} {timeStr}"
+            : $"Next: {label} {timeStr} (in {countdown})");
 
         if (_popup.Visible) ShowPopup();
-        CheckNotification();
     }
 
-    // Edge-triggered, day-aware: each reminder/azan fires once, within ~90s of its moment (tick = 15s).
+    // Edge-triggered, day-aware: each reminder/azan fires once, within the fire window of its minute (tick = 15s).
     void CheckNotification()
     {
         var now = DateTime.Now;
@@ -226,28 +249,31 @@ public class AppHost : ApplicationContext
         {
             if (key == "sunrise" || !_times.TryGetValue(key, out var ts)) continue;
             var at = DateTime.Today.Add(ts);
-
-            if (_cfg.ReminderEnabled && InWindow(now, at.AddMinutes(-_cfg.ReminderMinutes))
-                && _fired.Add($"{now:yyyyMMdd}:{key}:rem"))
+            try
             {
-                _tray.ShowBalloonTip(8000, "Prayer reminder",
-                    $"{label} in {_cfg.ReminderMinutes} min ({PrayerPopup.Format(ts, _cfg.Use24Hour)})", ToolTipIcon.Info);
-                if (_cfg.ReminderSound) AudioPlayer.PlayReminder(_cfg);
-            }
+                if (_cfg.ReminderEnabled && InWindow(now, at.AddMinutes(-_cfg.ReminderMinutes))
+                    && _fired.Add($"{now:yyyyMMdd}:{key}:rem"))
+                {
+                    _tray.ShowBalloonTip(8000, "Prayer reminder",
+                        $"{label} in {_cfg.ReminderMinutes} min ({PrayerPopup.Format(ts, _cfg.Use24Hour)})", ToolTipIcon.Info);
+                    if (_cfg.ReminderSound) AudioPlayer.PlayReminder(_cfg);
+                }
 
-            if (InWindow(now, at) && _fired.Add($"{now:yyyyMMdd}:{key}"))
-            {
-                _tray.ShowBalloonTip(8000, "Prayer time",
-                    $"It is now {label} ({PrayerPopup.Format(ts, _cfg.Use24Hour)})", ToolTipIcon.Info);
-                PlayAzan();
+                if (InWindow(now, at) && _fired.Add($"{now:yyyyMMdd}:{key}"))
+                {
+                    _tray.ShowBalloonTip(8000, "Prayer time",
+                        $"It is now {label} ({PrayerPopup.Format(ts, _cfg.Use24Hour)})", ToolTipIcon.Info);
+                    PlayAzan();
+                }
             }
+            catch { /* a balloon/audio hiccup must not kill the tick; logged by the global handler if fatal */ }
         }
     }
 
     static bool InWindow(DateTime now, DateTime target)
     {
         double s = (now - target).TotalSeconds;
-        return s >= 0 && s < 90;
+        return s >= 0 && s < 120; // fire within ~2 min of the minute (tick = 15s); _fired dedupes
     }
 
     void PlayAzan()
@@ -265,14 +291,17 @@ public class AppHost : ApplicationContext
         if (path != null) AudioPlayer.Play(path);
     }
 
-    (string? key, DateTime? at, string countdown) NextPrayer()
+    // Prayer times are whole minutes; a prayer is "current" (shows "now") during its own minute, so the
+    // pill flips to "now" the same minute the azan fires — not a minute early.
+    (string? key, DateTime? at, string countdown) CurrentOrNext()
     {
         var now = DateTime.Now;
         foreach (var (key, _) in Order)
         {
-            if (key == "sunrise") continue;
-            var at = DateTime.Today.Add(_times[key]);
-            if (at > now) return (key, at, FormatCountdown(at - now));
+            if (key == "sunrise" || !_times.TryGetValue(key, out var ts)) continue;
+            var at = DateTime.Today.Add(ts);
+            if (now < at) return (key, at, FormatCountdown(at - now)); // upcoming
+            if (now < at.AddMinutes(1)) return (key, at, "now");        // happening this minute
         }
         var tomorrow = DateTime.Today.AddDays(1);
         var t = PrayerCalculator.Compute(tomorrow, _cfg.Latitude, _cfg.Longitude,
@@ -283,7 +312,7 @@ public class AppHost : ApplicationContext
 
     static string FormatCountdown(TimeSpan span)
     {
-        if (span.TotalMinutes < 1) return "now";
+        if (span.TotalMinutes < 1) return "<1m";
         if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m";
         return $"{(int)span.TotalHours}:{span.Minutes:00}";
     }
@@ -321,6 +350,8 @@ public class AppHost : ApplicationContext
 
     void ExitApp()
     {
+        SystemEvents.TimeChanged -= OnTimeChanged;
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         AudioPlayer.Stop();
         _data.Stop();
         _pos.Stop();
