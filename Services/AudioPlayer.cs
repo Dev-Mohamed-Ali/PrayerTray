@@ -111,10 +111,10 @@ internal static class AudioPlayer
     // --- reminder sounds: synthesized bank (no bundled assets) + custom file ---
     public static readonly (string id, string label)[] ReminderSounds =
     {
-        ("chime", "Chime"), ("bell", "Bell"), ("ding", "Ding"),
-        ("beep", "Beep"), ("double", "Double beep"),
-        ("chime-long", "Chime (long)"), ("bells", "Bells (long)"),
-        ("marimba", "Marimba (long)"), ("pulse", "Pulse (long)"),
+        ("chime", "Soft Chime"), ("bell", "Warm Bell"), ("ding", "Bright Ding"),
+        ("beep", "Gentle Ping"), ("double", "Double Ping"),
+        ("chime-long", "Descending Chime"), ("bells", "Temple Bells"),
+        ("marimba", "Marimba"), ("pulse", "Soft Pulse"),
     };
 
     static readonly Dictionary<string, string> _synthPaths = new();
@@ -132,42 +132,46 @@ internal static class AudioPlayer
     public static string SynthPath(string id)
     {
         if (_synthPaths.TryGetValue(id, out var p) && File.Exists(p)) return p;
-        string outPath = Path.Combine(TempDir, $"rem-{id}.wav");
+        string outPath = Path.Combine(TempDir, $"rem-{id}-v2.wav");
         try { if (!File.Exists(outPath)) File.WriteAllBytes(outPath, BuildSound(id)); }
         catch { /* Play no-ops if missing */ }
         _synthPaths[id] = outPath;
         return outPath;
     }
 
-    // (freq Hz, length ms, decay) blips, played in sequence. decay>0 = exponential ring-out (bell).
+    // Notes (Hz) — a calm C-major / pentatonic palette for pleasant intervals.
+    const double C5 = 523.25, D5 = 587.33, E5 = 659.25, G5 = 783.99, A5 = 880.00,
+                 C6 = 1046.50, D6 = 1174.66, E6 = 1318.51;
+
+    // (freq Hz, length ms, decay) blips, played in sequence. Every tone rings out (decay>0) for a struck,
+    // bell-like feel; freq<=0 is a silent gap. Warmth comes from the harmonics added in the render loop.
     static byte[] BuildSound(string id)
     {
         var blips = id switch
         {
-            "bell" => new (double f, int ms, double dk)[] { (659.3, 900, 4.5) },
-            "ding" => new[] { (1046.5, 350, 3.0) },
-            "beep" => new[] { (880.0, 180, 0.0) },
-            "double" => new[] { (988.0, 110, 0.0), (0.0, 70, 0.0), (988.0, 110, 0.0) },
+            "bell" => new (double f, int ms, double dk)[] { (A5, 1500, 2.4) },
+            "ding" => new[] { (C6, 700, 3.2) },
+            "beep" => new[] { (A5, 260, 4.0) },
+            "double" => new[] { (C6, 200, 3.5), (0.0, 110, 0.0), (C6, 200, 3.5) },
             "chime-long" => new[]
             {
-                (659.3, 650, 1.8), (587.3, 650, 1.8), (523.3, 650, 1.8), (392.0, 1400, 1.5),
+                (C6, 420, 2.6), (A5, 420, 2.6), (G5, 420, 2.6), (E5, 420, 2.6), (C5, 1100, 2.0),
             },
             "bells" => new[]
             {
-                (659.3, 1400, 3.2), (0.0, 250, 0.0), (659.3, 1400, 3.2), (0.0, 250, 0.0), (523.3, 1900, 2.5),
+                (E6, 1300, 2.2), (0.0, 260, 0.0), (C6, 1300, 2.2), (0.0, 260, 0.0), (G5, 1900, 1.8),
             },
             "marimba" => new[]
             {
-                (523.3, 160, 4.0), (659.3, 160, 4.0), (784.0, 160, 4.0), (1046.5, 320, 3.5), (0.0, 200, 0.0),
-                (523.3, 160, 4.0), (659.3, 160, 4.0), (784.0, 160, 4.0), (1046.5, 480, 3.0),
+                (C5, 150, 6.0), (E5, 150, 6.0), (G5, 150, 6.0), (C6, 150, 6.0), (0.0, 90, 0.0),
+                (G5, 150, 6.0), (C6, 500, 5.0),
             },
             "pulse" => new[]
             {
-                (880.0, 150, 0.0), (0.0, 160, 0.0), (880.0, 150, 0.0), (0.0, 550, 0.0),
-                (880.0, 150, 0.0), (0.0, 160, 0.0), (880.0, 150, 0.0), (0.0, 550, 0.0),
-                (880.0, 150, 0.0), (0.0, 160, 0.0), (880.0, 150, 0.0),
+                (A5, 180, 4.0), (0.0, 200, 0.0), (A5, 180, 4.0), (0.0, 650, 0.0),
+                (A5, 180, 4.0), (0.0, 200, 0.0), (A5, 180, 4.0),
             },
-            _ => new[] { (880.0, 160, 0.0), (1174.7, 240, 1.5) }, // chime
+            _ => new[] { (G5, 300, 3.5), (0.0, 40, 0.0), (D6, 650, 3.0) }, // chime: soft rising fifth
         };
         const int rate = 44100, bits = 16;
         int total = 0;
@@ -198,7 +202,9 @@ internal static class AudioPlayer
                 double env = decay > 0
                     ? Math.Exp(-decay * i / n) * Math.Min(1.0, i / (double)fade)
                     : Math.Min(1.0, Math.Min(i, n - i) / (double)fade);
-                double sample = Math.Sin(2 * Math.PI * freq * i / rate) * env * 0.35;
+                double phase = 2 * Math.PI * freq * i / rate;
+                double tone = Math.Sin(phase) + 0.35 * Math.Sin(2 * phase) + 0.12 * Math.Sin(3 * phase);
+                double sample = tone / 1.47 * env * 0.32; // /1.47 normalizes the 3 partials below clipping
                 w.Write((short)(sample * short.MaxValue));
             }
         }
