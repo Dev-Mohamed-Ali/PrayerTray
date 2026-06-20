@@ -157,19 +157,21 @@ public class PrayerPopup : Form
         using var fRowB = new Font(Theme.Family, 10.5f * fs, FontStyle.Bold);
         using var fChip = new Font(Theme.Family, 9f * fs, FontStyle.Bold);
 
+        // Measure the countdown chip first so the date row can reserve room for it (avoids overlap).
+        string chip = string.IsNullOrEmpty(_countdown) ? "" : $"{_nextLabel} {Strings.T("popup.in")} {_countdown}";
+        float chipW = chip.Length == 0 ? 0 : g.MeasureString(chip, fChip).Width + Scaled(14);
+
         var sfHdr = new StringFormat { Alignment = rtl ? StringAlignment.Far : StringAlignment.Near };
         var hdrRect = new RectangleF(Pad, Scaled(12), Width - 2 * Pad, Scaled(22));
-        var dateRect = new RectangleF(Pad, Scaled(34), Width - 2 * Pad, Scaled(20));
+        float dateW = Width - 2 * Pad - (chipW > 0 ? chipW + Scaled(6) : 0);
+        var dateRect = new RectangleF(rtl ? Width - Pad - dateW : Pad, Scaled(34), dateW, Scaled(20));
         using (var b = new SolidBrush(Theme.Text)) g.DrawString(_city, fCity, b, hdrRect, sfHdr);
         using (var b = new SolidBrush(Theme.TextDim)) g.DrawString(_date, fDate, b, dateRect, sfHdr);
 
         DrawPin(g, rtl);
 
-        if (!string.IsNullOrEmpty(_countdown))
+        if (chipW > 0)
         {
-            string chip = $"{_nextLabel} {Strings.T("popup.in")} {_countdown}";
-            var sz = g.MeasureString(chip, fChip);
-            float chipW = sz.Width + Scaled(14);
             float chipX = rtl ? Pad + Scaled(2) : Width - Pad - chipW - Scaled(2);
             var chipRect = new RectangleF(chipX, Scaled(34), chipW, Scaled(22));
             using (var b = new SolidBrush(Theme.AccentSoft)) FillRounded(g, b, chipRect, Scaled(11));
