@@ -34,6 +34,7 @@ public class AppHost : ApplicationContext
     DateTime _popupHiddenAt = DateTime.MinValue;
     readonly HashSet<string> _fired = new();   // reminder/azan ids already fired today
     DateTime _firedDate = DateTime.MinValue;
+    DateTime? _nextAt;                          // cached target of the upcoming prayer (for the 1s seconds countdown)
     readonly System.Threading.SynchronizationContext _ui;
 
     public AppHost()
@@ -64,7 +65,7 @@ public class AppHost : ApplicationContext
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         _data.Tick += (_, _) => DataTick();
-        _pos.Tick += (_, _) => _widget.Tick();
+        _pos.Tick += (_, _) => PosTick();
 
         Recompute();
         DataTick();
@@ -222,11 +223,23 @@ public class AppHost : ApplicationContext
 
     void DataTick() { RenderTick(); CheckNotification(); }
 
+    // 1s timer: reposition the pill, and within the final minute re-render so the seconds countdown ticks live.
+    void PosTick()
+    {
+        _widget.Tick();
+        if (_nextAt is DateTime a)
+        {
+            double s = (a - DateTime.Now).TotalSeconds;
+            if (s > -60 && s <= 60) RenderTick(); // last minute (seconds countdown) + the "now" minute
+        }
+    }
+
     // Display-only refresh (no notifications) — safe to call from Settings live preview.
     void RenderTick()
     {
         EnsureToday();
-        var (nextKey, _, countdown) = CurrentOrNext();
+        var (nextKey, at, countdown) = CurrentOrNext();
+        _nextAt = at;
         string label = nextKey is null ? "?" : LabelOf(nextKey);
         string timeStr = nextKey is null || !_times.TryGetValue(nextKey, out var ts)
             ? "" : PrayerPopup.Format(ts, _cfg.Use24Hour);
@@ -312,7 +325,7 @@ public class AppHost : ApplicationContext
 
     static string FormatCountdown(TimeSpan span)
     {
-        if (span.TotalMinutes < 1) return "<1m";
+        if (span.TotalSeconds < 60) return $"{Math.Max(0, (int)span.TotalSeconds)}s";
         if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m";
         return $"{(int)span.TotalHours}:{span.Minutes:00}";
     }
