@@ -19,7 +19,7 @@ public class PrayerPopup : Form
     public event Action<bool>? PinChanged;     // user toggled the pin
     public event Action<int, int>? Moved;      // pinned popup dragged to a new spot
 
-    string _city = "", _date = "", _countdown = "", _nextLabel = "";
+    string _city = "", _date = "", _hijri = "", _countdown = "", _nextLabel = "";
     readonly List<Row> _rows = new();
     Rectangle _widget;
     bool _anchorRight = true;
@@ -31,7 +31,7 @@ public class PrayerPopup : Form
 
     int Pad => Scaled(16);
     int RowH => Scaled(38);
-    int HeaderH => Scaled(60);
+    int HeaderH => Scaled(_hijri.Length > 0 ? 74 : 60);
     static int Scaled(int v) => (int)Math.Round(v * Theme.FontScale);
 
     public PrayerPopup()
@@ -60,13 +60,15 @@ public class PrayerPopup : Form
     }
 
     public void ShowTimes(string city, DateTime date, Dictionary<string, TimeSpan> times,
-        string? nextKey, bool use24, string countdown, Rectangle widgetRect, bool anchorRight)
+        string? nextKey, bool use24, string countdown, Rectangle widgetRect, bool anchorRight,
+        string hijri = "")
     {
         _widget = widgetRect;
         _anchorRight = anchorRight;
         BackColor = Theme.Panel;
         _city = city;
         _date = Strings.FormatPopupDate(date);
+        _hijri = hijri;
         _countdown = countdown;
         _rows.Clear();
         foreach (var key in Order)
@@ -167,6 +169,12 @@ public class PrayerPopup : Form
         var dateRect = new RectangleF(rtl ? Width - Pad - dateW : Pad, Scaled(34), dateW, Scaled(20));
         using (var b = new SolidBrush(Theme.Text)) g.DrawString(_city, fCity, b, hdrRect, sfHdr);
         using (var b = new SolidBrush(Theme.TextDim)) g.DrawString(_date, fDate, b, dateRect, sfHdr);
+        if (_hijri.Length > 0)
+        {
+            var hijriRect = new RectangleF(Pad, Scaled(52), Width - 2 * Pad, Scaled(18));
+            using var b = new SolidBrush(Theme.TextDim);
+            g.DrawString(_hijri, fDate, b, hijriRect, sfHdr);
+        }
 
         DrawPin(g, rtl);
 

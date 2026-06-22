@@ -22,6 +22,8 @@ public class AppConfig
     public double TimezoneHours { get; set; } = 999;
 
     public string Language { get; set; } = "auto";       // auto | en | ar
+    public bool ShowHijriDate { get; set; } = true;
+    public int HijriAdjust { get; set; } = 0;            // moon-sighting offset, clamped -2..2 on save
     public string FontFamily { get; set; } = "Segoe UI";
     public int FontScalePct { get; set; } = 100;         // clamped 80–150 on save
 
@@ -48,7 +50,8 @@ public class AppConfig
         City = o.City; Latitude = o.Latitude; Longitude = o.Longitude; Method = o.Method; Asr = o.Asr;
         Use24Hour = o.Use24Hour; WidgetAnchor = o.WidgetAnchor; WidgetOffset = o.WidgetOffset; Theme = o.Theme;
         MonitorDeviceName = o.MonitorDeviceName; HideOnFullscreen = o.HideOnFullscreen; TimezoneHours = o.TimezoneHours;
-        Language = o.Language; FontFamily = o.FontFamily; FontScalePct = o.FontScalePct;
+        Language = o.Language; ShowHijriDate = o.ShowHijriDate; HijriAdjust = o.HijriAdjust;
+        FontFamily = o.FontFamily; FontScalePct = o.FontScalePct;
         PopupPinned = o.PopupPinned; PopupX = o.PopupX; PopupY = o.PopupY;
         ReminderEnabled = o.ReminderEnabled; ReminderMinutes = o.ReminderMinutes; ReminderSound = o.ReminderSound;
         ReminderSoundId = o.ReminderSoundId; ReminderSoundPath = o.ReminderSoundPath;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
+using PrayerTray.Calc;
 using PrayerTray.Native;
 
 namespace PrayerTray.I18n;
@@ -51,6 +52,14 @@ internal static class Strings
             ? $"{_arWeekdays[(int)d.DayOfWeek]}، {d.Day:00} {_arMonths[d.Month - 1]}"
             : d.ToString("dddd, dd MMM");
 
+    /// <summary>"7 Ramadan 1448" / "7 رمضان 1448" — Umm al-Qura, Western digits, ±adjust days.</summary>
+    public static string FormatHijri(DateTime d, int adjust)
+    {
+        var (y, m, day) = HijriDate.Convert(d, adjust);
+        var months = Lang == Language.Ar ? _hijriAr : _hijriEn;
+        return $"{day} {months[m - 1]} {y}";
+    }
+
     static readonly Dictionary<string, string> _prayerEn = new()
     {
         ["fajr"] = "Fajr", ["sunrise"] = "Sunrise", ["dhuhr"] = "Dhuhr",
@@ -73,6 +82,18 @@ internal static class Strings
     {
         "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
         "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+    };
+
+    static readonly string[] _hijriEn =
+    {
+        "Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani", "Jumada al-Awwal", "Jumada al-Thani",
+        "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qi'dah", "Dhu al-Hijjah",
+    };
+
+    static readonly string[] _hijriAr =
+    {
+        "محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة",
+        "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة",
     };
 
     static readonly Dictionary<string, string> _en = new()
@@ -120,6 +141,7 @@ internal static class Strings
         ["chk.hideFs"] = "Hide over fullscreen apps",
         ["chk.remind"] = "Remind me before each prayer",
         ["chk.playSound"] = "Play a sound",
+        ["chk.showHijri"] = "Show Hijri date",
         // settings — row labels
         ["label.city"] = "City (label):",
         ["label.lat"] = "Latitude:",
@@ -131,6 +153,7 @@ internal static class Strings
         ["label.theme"] = "Theme:",
         ["label.font"] = "Font:",
         ["label.fontSize"] = "Font size:",
+        ["label.hijriAdjust"] = "Hijri adjust (days):",
         ["label.widgetSide"] = "Widget side:",
         ["label.widgetGap"] = "Widget gap (px):",
         ["label.monitor"] = "Monitor:",
@@ -212,6 +235,7 @@ internal static class Strings
         ["chk.hideFs"] = "إخفاء فوق تطبيقات ملء الشاشة",
         ["chk.remind"] = "تذكيري قبل كل صلاة",
         ["chk.playSound"] = "تشغيل صوت",
+        ["chk.showHijri"] = "إظهار التاريخ الهجري",
         ["label.city"] = "المدينة (تسمية):",
         ["label.lat"] = "خط العرض:",
         ["label.lng"] = "خط الطول:",
@@ -222,6 +246,7 @@ internal static class Strings
         ["label.theme"] = "السمة:",
         ["label.font"] = "الخط:",
         ["label.fontSize"] = "حجم الخط:",
+        ["label.hijriAdjust"] = "ضبط الهجري (أيام):",
         ["label.widgetSide"] = "جهة الأداة:",
         ["label.widgetGap"] = "تباعد الأداة (بكسل):",
         ["label.monitor"] = "الشاشة:",

@@ -192,8 +192,9 @@ public class AppHost : ApplicationContext
     {
         EnsureToday();
         var (nextKey, _, countdown) = CurrentOrNext();
+        string hijri = _cfg.ShowHijriDate ? Strings.FormatHijri(DateTime.Today, _cfg.HijriAdjust) : "";
         _popup.ShowTimes(_cfg.City, DateTime.Today, _times, nextKey, _cfg.Use24Hour, ShownCountdown(countdown),
-            _widget.ScreenRect, _widget.AnchorRight);
+            _widget.ScreenRect, _widget.AnchorRight, hijri);
     }
 
     void OpenSettings() => RunSettings(null);
