@@ -100,10 +100,14 @@ Requires the .NET 8 Desktop Runtime (installed). Use `--self-contained` for a no
 
 Pushing a `vX.Y.Z` tag triggers GitHub Actions, which builds and publishes two assets — no local upload:
 
-- **`PrayerTray-autodetect-win-x64.exe`** — self-contained, compressed single file; runs on Win10
-  1809+/Win11 with nothing installed (includes one-click location auto-detect).
-- **`PrayerTray-manual-win-x64.exe`** — tiny framework-dependent build; needs the .NET 8 Desktop
-  Runtime, location set manually.
+- **`PrayerTray-standalone-win-x64.exe`** (~77 MB) — self-contained, compressed single file; **no
+  .NET install needed**, runs on any Win10 1809+/Win11. Adds one-click location auto-detect. *Pick
+  this if unsure.*
+- **`PrayerTray-needs-dotnet8-win-x64.exe`** (~3 MB) — tiny framework-dependent build; **requires the
+  [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)**, location entered manually.
+
+(The names describe the *runtime requirement*, not just location — the small build won't launch
+without .NET 8 installed.)
 
 ## Files
 

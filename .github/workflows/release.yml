@@ -19,7 +19,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       # Self-contained, compressed single file — runs on Win10 1809+/Win11 with nothing installed.
-      - name: Publish autodetect (self-contained)
+      - name: Publish standalone (self-contained, auto-detect location)
         run: >
           dotnet publish PrayerTray.csproj -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
@@ -27,7 +27,7 @@ jobs:
           -o publish/auto
 
       # Framework-dependent single file — tiny; needs the .NET 8 Desktop Runtime.
-      - name: Publish manual (framework-dependent)
+      - name: Publish dotnet8-dependent (framework-dependent, manual location)
         run: >
           dotnet publish PrayerTray.csproj -c Release -p:ManualOnly=true -r win-x64 --self-contained false
           -p:PublishSingleFile=true -p:DebugType=none
@@ -37,8 +37,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force release | Out-Null
-          Copy-Item publish/auto/PrayerTray.exe release/PrayerTray-autodetect-win-x64.exe
-          Copy-Item publish/manual/PrayerTray.exe release/PrayerTray-manual-win-x64.exe
+          Copy-Item publish/auto/PrayerTray.exe release/PrayerTray-standalone-win-x64.exe
+          Copy-Item publish/manual/PrayerTray.exe release/PrayerTray-needs-dotnet8-win-x64.exe
           Get-ChildItem release | Select-Object Name, Length
 
       # Manual runs (no tag): just upload artifacts so the build is still verifiable.
@@ -55,6 +55,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          body: |
+            ### Which download?
+
+            | File | Size | .NET 8 needed? | Location |
+            |------|------|----------------|----------|
+            | **PrayerTray-standalone-win-x64.exe** | ~77 MB | **No** — runs on any Win10 1809+/Win11 | Auto-detect or manual |
+            | **PrayerTray-needs-dotnet8-win-x64.exe** | ~3 MB | **Yes** — [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) | Manual entry only |
+
+            Not sure? Grab **standalone** — bigger download, but it just runs.
           files: |
-            release/PrayerTray-autodetect-win-x64.exe
-            release/PrayerTray-manual-win-x64.exe
+            release/PrayerTray-standalone-win-x64.exe
+            release/PrayerTray-needs-dotnet8-win-x64.exe
