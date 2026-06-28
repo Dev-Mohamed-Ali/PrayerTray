@@ -18,6 +18,7 @@ public class AppConfig
     public string Theme { get; set; } = "Auto";          // Auto | Dark | Light | Midnight | Slate | Warm
     public string? MonitorDeviceName { get; set; }       // null = primary monitor's taskbar
     public bool HideOnFullscreen { get; set; } = true;   // hide the pill over fullscreen apps/games
+    public bool ShowNetSpeed { get; set; } = false;      // append live ↓/↑ throughput to the pill
     // 999 = use system timezone for the date (handles DST); else fixed UTC offset hours.
     public double TimezoneHours { get; set; } = 999;
 
@@ -49,7 +50,8 @@ public class AppConfig
     {
         City = o.City; Latitude = o.Latitude; Longitude = o.Longitude; Method = o.Method; Asr = o.Asr;
         Use24Hour = o.Use24Hour; WidgetAnchor = o.WidgetAnchor; WidgetOffset = o.WidgetOffset; Theme = o.Theme;
-        MonitorDeviceName = o.MonitorDeviceName; HideOnFullscreen = o.HideOnFullscreen; TimezoneHours = o.TimezoneHours;
+        MonitorDeviceName = o.MonitorDeviceName; HideOnFullscreen = o.HideOnFullscreen; ShowNetSpeed = o.ShowNetSpeed;
+        TimezoneHours = o.TimezoneHours;
         Language = o.Language; ShowHijriDate = o.ShowHijriDate; HijriAdjust = o.HijriAdjust;
         FontFamily = o.FontFamily; FontScalePct = o.FontScalePct;
         PopupPinned = o.PopupPinned; PopupX = o.PopupX; PopupY = o.PopupY;

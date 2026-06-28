@@ -69,6 +69,9 @@ adhan (Makkah / Madinah), or a custom file. **Test**/**Stop** buttons preview ea
   floats at the bottom of that screen instead.
 - **Hide over fullscreen apps** (on by default) — the pill hides while a game or fullscreen video
   owns its monitor, and reappears when you exit fullscreen.
+- **Show internet speed** (off by default) — appends a live `↓ / ↑` throughput meter to the pill,
+  updated every second from the active network adapter. Reads local NIC counters only — no network
+  calls, no extra dependencies.
 
 **Set location — two ways** (both auto-run/appear on first launch):
 
@@ -120,6 +123,7 @@ Source is grouped by concern (single `PrayerTray` assembly, nested namespaces):
 | `I18n/Strings.cs` | Embedded EN/AR string catalog + RTL/date helpers (no satellite assemblies) |
 | `Services/AudioPlayer.cs` | Azan/reminder playback via winmm MCI + synthesized reminder tones |
 | `Services/LocationService.cs` | One-shot location detect (Windows Location → IP) + map-link parsing |
+| `Services/NetSpeed.cs` | Live ↓/↑ throughput from NIC byte counters (optional pill meter) |
 | `Native/Interop.cs` | Win32/DWM P/Invoke: taskbar, geometry, DPI, fullscreen detect, light/dark title bar |
 | `Native/Displays.cs` | Monitor enumeration + friendly names (CCD DisplayConfig API) |
 | `UI/Theme.cs` | Palettes (Dark/Light/Midnight/Slate/Warm) + Auto-follow + taskbar geometry |

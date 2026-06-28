@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using PrayerTray.I18n;
 using PrayerTray.Native;
+using PrayerTray.Services;
 
 namespace PrayerTray.UI;
 
@@ -22,7 +23,7 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     readonly string? _deviceName; // target monitor (null = primary)
     public string? DeviceName => _deviceName;
 
-    string _name = "—", _time = "", _count = "…";
+    string _name = "—", _time = "", _count = "…", _net = "";
     bool _hover, _tracking, _paused, _suppressed;
     int _w = 160, _h = 32;
     float _scale = 1f;
@@ -117,6 +118,18 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         Invalidate();
     }
 
+    // Live throughput, refreshed every second. Width is template-reserved, so only toggling the meter
+    // on/off resizes the pill — the per-second value just repaints.
+    public void SetNet(string net)
+    {
+        if (_net == net) return;
+        bool toggled = (_net.Length == 0) != (net.Length == 0);
+        _net = net;
+        if (toggled) ResizeToContent();
+        RenderBuffer();
+        Invalidate();
+    }
+
     void ResizeToContent()
     {
         using var fMain = MainFont();
@@ -124,8 +137,10 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         string left = $"{_name}  {_time}".Trim();
         int wLeft = (int)Math.Ceiling(_measure.MeasureString(left, fMain).Width);
         int wCount = (int)Math.Ceiling(_measure.MeasureString(_count, fCount).Width);
-        // [pad][dot][gap] left [gap] · [gap] count [pad]
-        _w = S(12) + S(8) + S(8) + wLeft + S(8) + S(6) + S(8) + wCount + S(12);
+        int wNet = _net.Length == 0 ? 0 : (int)Math.Ceiling(_measure.MeasureString(NetSpeed.Template, fMain).Width);
+        // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
+        int tail = S(8) + S(6) + S(8) + wCount + (wNet > 0 ? S(8) + S(6) + S(8) + wNet : 0);
+        _w = S(12) + S(8) + S(8) + wLeft + tail + S(12);
         _w = Math.Max(S(110), _w);
     }
 
@@ -229,6 +244,15 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
             xr -= S(6) + S(8);
             using (var b = new SolidBrush(Theme.Good))
                 g.DrawString(_count, fCount, b, new RectangleF(0, 0, xr, _h), far);
+            if (_net.Length > 0)
+            {
+                xr -= _measure.MeasureString(_count, fCount).Width + S(8);
+                using (var b = new SolidBrush(Theme.TextDim))
+                    g.DrawString("·", fMain, b, new RectangleF(0, 0, xr, _h), far);
+                xr -= S(6) + S(8);
+                using (var b = new SolidBrush(Theme.TextDim))
+                    g.DrawString(_net, fMain, b, new RectangleF(0, 0, xr, _h), far);
+            }
             return;
         }
 
@@ -244,6 +268,15 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         x += S(6) + S(8);
         using (var b = new SolidBrush(Theme.Good))
             g.DrawString(_count, fCount, b, new RectangleF(x, 0, _w, _h), sf);
+        if (_net.Length > 0)
+        {
+            x += _measure.MeasureString(_count, fCount).Width + S(8);
+            using (var b = new SolidBrush(Theme.TextDim))
+                g.DrawString("·", fMain, b, new RectangleF(x, 0, S(6), _h), sf);
+            x += S(6) + S(8);
+            using (var b = new SolidBrush(Theme.TextDim))
+                g.DrawString(_net, fMain, b, new RectangleF(x, 0, _w, _h), sf);
+        }
     }
 
     protected override void WndProc(ref Message m)

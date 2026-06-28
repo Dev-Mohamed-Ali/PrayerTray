@@ -142,6 +142,7 @@ internal static class Strings
         ["chk.remind"] = "Remind me before each prayer",
         ["chk.playSound"] = "Play a sound",
         ["chk.showHijri"] = "Show Hijri date",
+        ["chk.netSpeed"] = "Show internet speed",
         // settings — row labels
         ["label.city"] = "City (label):",
         ["label.lat"] = "Latitude:",
@@ -236,6 +237,7 @@ internal static class Strings
         ["chk.remind"] = "تذكيري قبل كل صلاة",
         ["chk.playSound"] = "تشغيل صوت",
         ["chk.showHijri"] = "إظهار التاريخ الهجري",
+        ["chk.netSpeed"] = "إظهار سرعة الإنترنت",
         ["label.city"] = "المدينة (تسمية):",
         ["label.lat"] = "خط العرض:",
         ["label.lng"] = "خط الطول:",

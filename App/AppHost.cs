@@ -145,6 +145,7 @@ public class AppHost : ApplicationContext
         _widget.AnchorRight = !string.Equals(_cfg.WidgetAnchor, "Left", StringComparison.OrdinalIgnoreCase);
         _widget.Offset = _cfg.WidgetOffset;
         _widget.HideOnFullscreen = _cfg.HideOnFullscreen;
+        if (!_cfg.ShowNetSpeed) _widget.SetNet(""); // PosTick fills it when enabled
     }
 
     static Icon LoadAppIcon()
@@ -238,6 +239,11 @@ public class AppHost : ApplicationContext
     // 1s timer: reposition the pill, and within the final minute re-render so the seconds countdown ticks live.
     void PosTick()
     {
+        if (_cfg.ShowNetSpeed)
+        {
+            var (down, up) = NetSpeed.Sample();
+            _widget.SetNet(NetSpeed.Format(down, up));
+        }
         _widget.Tick();
         if (_nextAt is DateTime a)
         {

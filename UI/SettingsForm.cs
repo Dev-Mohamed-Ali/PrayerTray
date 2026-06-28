@@ -43,6 +43,7 @@ public class SettingsForm : Form
     readonly CheckBox _h24 = new() { Text = Strings.T("chk.use24"), AutoSize = true };
     readonly CheckBox _hideFs = new() { Text = Strings.T("chk.hideFs"), AutoSize = true };
     readonly CheckBox _showHijri = new() { Text = Strings.T("chk.showHijri"), AutoSize = true };
+    readonly CheckBox _netSpeed = new() { Text = Strings.T("chk.netSpeed"), AutoSize = true };
     readonly NumericUpDown _hijriAdjust = new() { Width = 90, Minimum = -2, Maximum = 2 };
 
     readonly CheckBox _remEnable = new() { Text = Strings.T("chk.remind"), AutoSize = true };
@@ -113,6 +114,7 @@ public class SettingsForm : Form
         AddRow(appBody, Strings.T("label.monitor"), _monitor);
         AddSpan(appBody, _h24);
         AddSpan(appBody, _hideFs);
+        AddSpan(appBody, _netSpeed);
         AddSpan(appBody, _showHijri);
         AddRow(appBody, Strings.T("label.hijriAdjust"), _hijriAdjust);
 
@@ -218,6 +220,7 @@ public class SettingsForm : Form
         _monitor.SelectedIndex = Math.Max(0, monIdx);
         _h24.Checked = _cfg.Use24Hour;
         _hideFs.Checked = _cfg.HideOnFullscreen;
+        _netSpeed.Checked = _cfg.ShowNetSpeed;
         _showHijri.Checked = _cfg.ShowHijriDate;
         _hijriAdjust.Value = Math.Clamp(_cfg.HijriAdjust, -2, 2);
 
@@ -242,6 +245,7 @@ public class SettingsForm : Form
         _position.SelectedIndexChanged += (_, _) => Live(() => _cfg.WidgetAnchor = _position.SelectedIndex == 1 ? "Left" : "Right");
         _h24.CheckedChanged += (_, _) => Live(() => _cfg.Use24Hour = _h24.Checked);
         _hideFs.CheckedChanged += (_, _) => Live(() => _cfg.HideOnFullscreen = _hideFs.Checked);
+        _netSpeed.CheckedChanged += (_, _) => Live(() => _cfg.ShowNetSpeed = _netSpeed.Checked);
         _showHijri.CheckedChanged += (_, _) => { Live(() => _cfg.ShowHijriDate = _showHijri.Checked); SyncEnabled(); };
         _hijriAdjust.ValueChanged += (_, _) => Live(() => _cfg.HijriAdjust = (int)_hijriAdjust.Value);
         _method.SelectedIndexChanged += (_, _) => Live(() => _cfg.Method = new List<string>(CalcMethod.All.Keys)[_method.SelectedIndex]);
@@ -412,6 +416,7 @@ public class SettingsForm : Form
             _cfg.WidgetOffset = Math.Clamp(off, 0, 2000);
         _cfg.Use24Hour = _h24.Checked;
         _cfg.HideOnFullscreen = _hideFs.Checked;
+        _cfg.ShowNetSpeed = _netSpeed.Checked;
         _cfg.ShowHijriDate = _showHijri.Checked;
         _cfg.HijriAdjust = Math.Clamp((int)_hijriAdjust.Value, -2, 2);
 
@@ -488,7 +493,7 @@ public class SettingsForm : Form
     {
         foreach (var cb in new[] { _method, _asr, _position, _language, _theme, _font, _fontSize, _monitor, _remSoundCombo, _azan }) StyleCombo(cb);
         foreach (var tb in new[] { _city, _paste, _lat, _lng, _offset, _remFile, _azanFile }) StyleText(tb);
-        foreach (var ck in new[] { _h24, _hideFs, _showHijri, _remEnable, _remSound }) StyleCheck(ck);
+        foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _showHijri, _remEnable, _remSound }) StyleCheck(ck);
         StyleNumeric(_remMins);
         StyleNumeric(_hijriAdjust);
         var btns = new List<Button> { _openMap, _setPaste, _remBrowse, _remTest, _azanBrowse, _azanTest, _azanStop };
