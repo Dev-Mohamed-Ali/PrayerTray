@@ -38,6 +38,7 @@ public class AppHost : ApplicationContext
     {
         _ui = System.Threading.SynchronizationContext.Current ?? new System.Threading.SynchronizationContext();
         _cfg = AppConfig.Load();
+        ToastService.Init();
         Strings.Init(_cfg.Language);
         ApplyTheme();
         _widget = new TaskbarWidget(_cfg.MonitorDeviceName);
@@ -224,7 +225,7 @@ public class AppHost : ApplicationContext
             bool restart;
             do
             {
-                using var form = new SettingsForm(_cfg, LivePreview, prefill, orig);
+                using var form = new SettingsForm(_cfg, LivePreview, prefill, orig, TestNotify);
                 var result = form.ShowDialog();
                 restart = form.RestartRequested;
                 prefill = null; // only apply detected prefill on the first open
@@ -304,15 +305,15 @@ public class AppHost : ApplicationContext
                 if (_cfg.ReminderEnabled && InWindow(now, at.AddMinutes(-_cfg.ReminderMinutes))
                     && _fired.Add($"{now:yyyyMMdd}:{key}:rem"))
                 {
-                    _tray.ShowBalloonTip(8000, Strings.T("balloon.reminderTitle"),
-                        Strings.F("balloon.reminderBody", label, _cfg.ReminderMinutes, PrayerPopup.Format(ts, _cfg.Use24Hour)), ToolTipIcon.Info);
+                    Notify(Strings.T("balloon.reminderTitle"),
+                        Strings.F("balloon.reminderBody", label, _cfg.ReminderMinutes, PrayerPopup.Format(ts, _cfg.Use24Hour)));
                     if (_cfg.ReminderSound) AudioPlayer.PlayReminder(_cfg);
                 }
 
                 if (InWindow(now, at) && _fired.Add($"{now:yyyyMMdd}:{key}"))
                 {
-                    _tray.ShowBalloonTip(8000, Strings.T("balloon.timeTitle"),
-                        Strings.F("balloon.timeBody", label, PrayerPopup.Format(ts, _cfg.Use24Hour)), ToolTipIcon.Info);
+                    Notify(Strings.T("balloon.timeTitle"),
+                        Strings.F("balloon.timeBody", label, PrayerPopup.Format(ts, _cfg.Use24Hour)));
                     PlayAzan();
                 }
             }
@@ -325,7 +326,7 @@ public class AppHost : ApplicationContext
         {
             var reason = SunnahFastReason(DateTime.Today.AddDays(1));
             if (reason != null)
-                Balloon(Strings.T("balloon.fastTitle"), Strings.F("balloon.fastBody", FastReasonName(reason)));
+                Notify(Strings.T("balloon.fastTitle"), Strings.F("balloon.fastBody", FastReasonName(reason)));
         }
 
         // Friday nudges: Surah Al-Kahf at Fajr, and a Jumu'ah heads-up shortly before Dhuhr.
@@ -333,20 +334,31 @@ public class AppHost : ApplicationContext
         {
             if (_times.TryGetValue("fajr", out var fts) && InWindow(now, DateTime.Today.Add(fts))
                 && _fired.Add($"{now:yyyyMMdd}:kahf"))
-                Balloon(Strings.T("balloon.jumuahTitle"), Strings.T("balloon.kahfBody"));
+                Notify(Strings.T("balloon.jumuahTitle"), Strings.T("balloon.kahfBody"));
             if (_times.TryGetValue("dhuhr", out var dts)
                 && InWindow(now, DateTime.Today.Add(dts).AddMinutes(-JumuahLeadMin))
                 && _fired.Add($"{now:yyyyMMdd}:jumuah"))
-                Balloon(Strings.T("balloon.jumuahTitle"), Strings.T("balloon.jumuahBody"));
+                Notify(Strings.T("balloon.jumuahTitle"), Strings.T("balloon.jumuahBody"));
         }
     }
 
     const int JumuahLeadMin = 30;
 
-    void Balloon(string title, string body)
+    // Prefer a rich Action Center toast; fall back to a tray balloon (older Windows / ManualOnly / failure).
+    void Notify(string title, string body)
     {
+        if (_cfg.RichToasts && ToastService.Show(title, body)) return;
         try { _tray.ShowBalloonTip(8000, title, body, ToolTipIcon.Info); }
         catch { /* balloon hiccup must not kill the tick */ }
+    }
+
+    // Settings "Test" button: fire a sample notification honoring the checkbox's current (unsaved) state.
+    void TestNotify(bool useToast)
+    {
+        string title = Strings.T("app.name"), body = Strings.T("toast.test");
+        if (useToast && ToastService.Show(title, body)) return;
+        try { _tray.ShowBalloonTip(8000, title, body, ToolTipIcon.Info); }
+        catch { /* ignore */ }
     }
 
     // Why tomorrow is a Sunnah fasting day (or null). Fixed days win; skips days where fasting is forbidden.

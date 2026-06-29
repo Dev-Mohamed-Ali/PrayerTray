@@ -19,6 +19,7 @@ public class SettingsForm : Form
     readonly AppConfig _cfg;
     readonly AppConfig _snapshot;
     readonly Action? _live;
+    readonly Action<bool>? _testNotify;   // (useToast) -> fire a sample notification
     bool _ready;
 
     readonly TextBox _city = new() { Width = 200 };
@@ -55,6 +56,8 @@ public class SettingsForm : Form
     readonly CheckBox _netSpeed = new() { Text = Strings.T("chk.netSpeed"), AutoSize = true };
     readonly NumericUpDown _hijriAdjust = new() { Width = 90, Minimum = -2, Maximum = 2 };
 
+    readonly CheckBox _richToasts = new() { Text = Strings.T("chk.richToasts"), AutoSize = true };
+    readonly Button _testToast = new() { Text = Strings.T("btn.test"), AutoSize = true, Margin = new Padding(8, 0, 0, 0) };
     readonly CheckBox _remEnable = new() { Text = Strings.T("chk.remind"), AutoSize = true };
     readonly NumericUpDown _remMins = new() { Width = 90, Minimum = 1, Maximum = 60 };
     readonly CheckBox _remSound = new() { Text = Strings.T("chk.playSound"), AutoSize = true };
@@ -80,11 +83,13 @@ public class SettingsForm : Form
     /// language/direction (strings + RTL are fixed at construction).</summary>
     public bool RestartRequested { get; private set; }
 
-    public SettingsForm(AppConfig cfg, Action? livePreview = null, DetectedLocation? prefill = null, AppConfig? snapshotOverride = null)
+    public SettingsForm(AppConfig cfg, Action? livePreview = null, DetectedLocation? prefill = null,
+        AppConfig? snapshotOverride = null, Action<bool>? testNotify = null)
     {
         _cfg = cfg;
         _snapshot = snapshotOverride ?? cfg.Clone();
         _live = livePreview;
+        _testNotify = testNotify;
 
         Text = Strings.T("settings.title");
         if (Strings.IsRtl) { RightToLeft = RightToLeft.Yes; RightToLeftLayout = true; }
@@ -144,6 +149,7 @@ public class SettingsForm : Form
 
         // --- Notifications card ---
         var notifBody = Body();
+        AddSpan(notifBody, Row(_richToasts, _testToast));
         AddSpan(notifBody, _remEnable);
         AddRow(notifBody, Strings.T("label.minutesBefore"), _remMins);
         AddSpan(notifBody, _remSound);
@@ -300,6 +306,7 @@ public class SettingsForm : Form
         _fridayRem.Checked = _cfg.FridayReminder;
         _hijriAdjust.Value = Math.Clamp(_cfg.HijriAdjust, -2, 2);
 
+        _richToasts.Checked = _cfg.RichToasts;
         _remEnable.Checked = _cfg.ReminderEnabled;
         _remMins.Value = Math.Clamp(_cfg.ReminderMinutes, 1, 60);
         _remSound.Checked = _cfg.ReminderSound;
@@ -353,6 +360,7 @@ public class SettingsForm : Form
         _azanBrowse.Click += (_, _) => PickFile(_azanFile, "Audio|*.mp3;*.wav");
         _azanTest.Click += (_, _) => { var p = CurrentAzanPath(); if (p != null) AudioPlayer.Play(p); };
         _azanStop.Click += (_, _) => AudioPlayer.Stop();
+        _testToast.Click += (_, _) => _testNotify?.Invoke(_richToasts.Checked);
     }
 
     void Live(Action set)
@@ -512,6 +520,7 @@ public class SettingsForm : Form
         _cfg.FridayReminder = _fridayRem.Checked;
         _cfg.HijriAdjust = Math.Clamp((int)_hijriAdjust.Value, -2, 2);
 
+        _cfg.RichToasts = _richToasts.Checked;
         _cfg.ReminderEnabled = _remEnable.Checked;
         _cfg.ReminderMinutes = Math.Clamp((int)_remMins.Value, 1, 60);
         _cfg.ReminderSound = _remSound.Checked;
@@ -584,11 +593,11 @@ public class SettingsForm : Form
     {
         foreach (var cb in new[] { _method, _asr, _highLat, _position, _language, _theme, _font, _fontSize, _monitor, _remSoundCombo, _azan }) StyleCombo(cb);
         foreach (var tb in new[] { _city, _paste, _lat, _lng, _offset, _remFile, _azanFile }) StyleText(tb);
-        foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _showHijri, _showEvents, _sunnahFast, _fridayRem, _remEnable, _remSound }) StyleCheck(ck);
+        foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _showHijri, _showEvents, _sunnahFast, _fridayRem, _richToasts, _remEnable, _remSound }) StyleCheck(ck);
         StyleNumeric(_remMins);
         StyleNumeric(_hijriAdjust);
         foreach (var n in new[] { _adjFajr, _adjDhuhr, _adjAsr, _adjMaghrib, _adjIsha }) StyleNumeric(n);
-        var btns = new List<Button> { _openMap, _setPaste, _remBrowse, _remTest, _azanBrowse, _azanTest, _azanStop };
+        var btns = new List<Button> { _openMap, _setPaste, _testToast, _remBrowse, _remTest, _azanBrowse, _azanTest, _azanStop };
 #if !MANUAL_ONLY
         btns.Add(_detect);
 #endif

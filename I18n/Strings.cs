@@ -157,6 +157,7 @@ internal static class Strings
         // balloons
         ["balloon.reminderTitle"] = "Prayer reminder",
         ["balloon.reminderBody"] = "{0} in {1} min ({2})",
+        ["toast.test"] = "This is a test notification.",
         ["balloon.timeTitle"] = "Prayer time",
         ["balloon.timeBody"] = "It is now {0} ({1})",
         ["balloon.fastTitle"] = "Sunnah fasting",
@@ -184,6 +185,7 @@ internal static class Strings
         // settings — checkboxes
         ["chk.use24"] = "Use 24-hour clock",
         ["chk.hideFs"] = "Hide over fullscreen apps",
+        ["chk.richToasts"] = "Use Windows notifications (rich toasts)",
         ["chk.remind"] = "Remind me before each prayer",
         ["chk.playSound"] = "Play a sound",
         ["chk.showHijri"] = "Show Hijri date",
@@ -275,6 +277,7 @@ internal static class Strings
         ["popup.in"] = "خلال",
         ["balloon.reminderTitle"] = "تذكير الصلاة",
         ["balloon.reminderBody"] = "{0} خلال {1} دقيقة ({2})",
+        ["toast.test"] = "هذا إشعار تجريبي.",
         ["balloon.timeTitle"] = "وقت الصلاة",
         ["balloon.timeBody"] = "حان الآن وقت {0} ({1})",
         ["balloon.fastTitle"] = "صيام السنة",
@@ -298,6 +301,7 @@ internal static class Strings
         ["ph.customFile"] = "ملف مخصص",
         ["chk.use24"] = "نظام 24 ساعة",
         ["chk.hideFs"] = "إخفاء فوق تطبيقات ملء الشاشة",
+        ["chk.richToasts"] = "استخدام إشعارات ويندوز (إشعارات منسّقة)",
         ["chk.remind"] = "تذكيري قبل كل صلاة",
         ["chk.playSound"] = "تشغيل صوت",
         ["chk.showHijri"] = "إظهار التاريخ الهجري",

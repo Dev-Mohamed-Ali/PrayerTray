@@ -115,6 +115,10 @@ internal static class Interop
 
     public const int TME_LEAVE = 0x2;
 
+    // --- toast attribution: tag the process with an AppUserModelID matching the Start-Menu shortcut ---
+    [DllImport("shell32.dll", PreserveSig = false)]
+    public static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
+
     // --- UI language ---
     [DllImport("kernel32.dll")] static extern ushort GetUserDefaultUILanguage();
     // LANG_ARABIC == 0x01 (low 10 bits of the LANGID); all Arabic sublanguages share it.

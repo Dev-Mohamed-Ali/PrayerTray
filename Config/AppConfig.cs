@@ -43,6 +43,7 @@ public class AppConfig
     public int PopupX { get; set; } = int.MinValue;      // int.MinValue = unset -> anchor to the pill
     public int PopupY { get; set; } = int.MinValue;
 
+    public bool RichToasts { get; set; } = true;        // prefer Action Center toasts over tray balloons
     public bool ReminderEnabled { get; set; } = false;
     public int ReminderMinutes { get; set; } = 10;       // clamped 1–60 on save
     public bool ReminderSound { get; set; } = true;
@@ -71,6 +72,7 @@ public class AppConfig
         FridayReminder = o.FridayReminder;
         FontFamily = o.FontFamily; FontScalePct = o.FontScalePct;
         PopupPinned = o.PopupPinned; PopupX = o.PopupX; PopupY = o.PopupY;
+        RichToasts = o.RichToasts;
         ReminderEnabled = o.ReminderEnabled; ReminderMinutes = o.ReminderMinutes; ReminderSound = o.ReminderSound;
         ReminderSoundId = o.ReminderSoundId; ReminderSoundPath = o.ReminderSoundPath;
         AzanMode = o.AzanMode; AzanCustomPath = o.AzanCustomPath;
