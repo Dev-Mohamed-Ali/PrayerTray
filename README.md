@@ -85,6 +85,9 @@ adhan (Makkah / Madinah), or a custom file. **Test**/**Stop** buttons preview ea
   Day of Arafah, Ashura, Islamic New Year, Mawlid, the monthly white days, …) or, on an ordinary day,
   a countdown to the next major event (e.g. *Ramadan in 12 days*). Derived from the Hijri date —
   offline, follows the same moon-sighting adjuster.
+- **Sunnah fasting reminder** (off by default) — an eve-before balloon (at Maghrib) when the next day
+  is a recommended fast: Mondays/Thursdays, the white days, Day of Arafah, or Ashura. Skips days where
+  fasting is forbidden (the two Eids, Tashreeq).
 
 **Set location — two ways** (both auto-run/appear on first launch):
 

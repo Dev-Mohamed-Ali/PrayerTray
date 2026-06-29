@@ -318,7 +318,39 @@ public class AppHost : ApplicationContext
             }
             catch { /* a balloon/audio hiccup must not kill the tick; logged by the global handler if fatal */ }
         }
+
+        // Eve-before nudge for tomorrow's Sunnah fast, anchored to today's Maghrib (time to plan suhoor).
+        if (_cfg.SunnahFastReminder && _times.TryGetValue("maghrib", out var mts)
+            && InWindow(now, DateTime.Today.Add(mts)) && _fired.Add($"{now:yyyyMMdd}:sunnahfast"))
+        {
+            var reason = SunnahFastReason(DateTime.Today.AddDays(1));
+            if (reason != null)
+                try { _tray.ShowBalloonTip(8000, Strings.T("balloon.fastTitle"),
+                    Strings.F("balloon.fastBody", FastReasonName(reason)), ToolTipIcon.Info); }
+                catch { /* balloon hiccup must not kill the tick */ }
+        }
     }
+
+    // Why tomorrow is a Sunnah fasting day (or null). Fixed days win; skips days where fasting is forbidden.
+    string? SunnahFastReason(DateTime day)
+    {
+        var ev = IslamicEvents.ForDate(day, _cfg.HijriAdjust);
+        if (ev is "eidFitr" or "eidAdha" or "tashreeq") return null; // fasting forbidden
+        if (ev is "arafah" or "ashura" or "whiteDays") return ev;
+        return day.DayOfWeek switch
+        {
+            DayOfWeek.Monday => "monday",
+            DayOfWeek.Thursday => "thursday",
+            _ => null,
+        };
+    }
+
+    static string FastReasonName(string r) => r switch
+    {
+        "monday" => Strings.T("fast.monday"),
+        "thursday" => Strings.T("fast.thursday"),
+        _ => Strings.Event(r),
+    };
 
     static bool InWindow(DateTime now, DateTime target)
     {

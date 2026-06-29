@@ -159,6 +159,10 @@ internal static class Strings
         ["balloon.reminderBody"] = "{0} in {1} min ({2})",
         ["balloon.timeTitle"] = "Prayer time",
         ["balloon.timeBody"] = "It is now {0} ({1})",
+        ["balloon.fastTitle"] = "Sunnah fasting",
+        ["balloon.fastBody"] = "Tomorrow: {0} — consider fasting (suhoor before Fajr)",
+        ["fast.monday"] = "Monday",
+        ["fast.thursday"] = "Thursday",
         // crash
         ["crash.body"] = "Prayer Tray hit an unexpected error and recovered.\n" +
                          "Details were written to %APPDATA%\\PrayerTray\\error.log.",
@@ -181,6 +185,7 @@ internal static class Strings
         ["chk.playSound"] = "Play a sound",
         ["chk.showHijri"] = "Show Hijri date",
         ["chk.showEvents"] = "Show Islamic events & special days",
+        ["chk.sunnahFast"] = "Remind me about Sunnah fasting (eve before)",
         ["chk.netSpeed"] = "Show internet speed",
         ["event.inDays"] = "{0} in {1} days",
         ["event.tomorrow"] = "{0} tomorrow",
@@ -263,6 +268,10 @@ internal static class Strings
         ["balloon.reminderBody"] = "{0} خلال {1} دقيقة ({2})",
         ["balloon.timeTitle"] = "وقت الصلاة",
         ["balloon.timeBody"] = "حان الآن وقت {0} ({1})",
+        ["balloon.fastTitle"] = "صيام السنة",
+        ["balloon.fastBody"] = "غدًا: {0} — فكّر في الصيام (السحور قبل الفجر)",
+        ["fast.monday"] = "الإثنين",
+        ["fast.thursday"] = "الخميس",
         ["crash.body"] = "واجه أوقات الصلاة خطأً غير متوقع وتعافى منه.\n" +
                          "كُتبت التفاصيل في %APPDATA%\\PrayerTray\\error.log.",
         ["settings.title"] = "أوقات الصلاة — الإعدادات",
@@ -281,6 +290,7 @@ internal static class Strings
         ["chk.playSound"] = "تشغيل صوت",
         ["chk.showHijri"] = "إظهار التاريخ الهجري",
         ["chk.showEvents"] = "إظهار المناسبات والأيام المميزة",
+        ["chk.sunnahFast"] = "تذكيري بصيام السنة (مساء اليوم السابق)",
         ["chk.netSpeed"] = "إظهار سرعة الإنترنت",
         ["event.inDays"] = "{0} خلال {1} يومًا",
         ["event.tomorrow"] = "{0} غدًا",

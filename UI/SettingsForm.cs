@@ -49,6 +49,7 @@ public class SettingsForm : Form
     readonly CheckBox _hideFs = new() { Text = Strings.T("chk.hideFs"), AutoSize = true };
     readonly CheckBox _showHijri = new() { Text = Strings.T("chk.showHijri"), AutoSize = true };
     readonly CheckBox _showEvents = new() { Text = Strings.T("chk.showEvents"), AutoSize = true };
+    readonly CheckBox _sunnahFast = new() { Text = Strings.T("chk.sunnahFast"), AutoSize = true };
     readonly CheckBox _netSpeed = new() { Text = Strings.T("chk.netSpeed"), AutoSize = true };
     readonly NumericUpDown _hijriAdjust = new() { Width = 90, Minimum = -2, Maximum = 2 };
 
@@ -134,6 +135,7 @@ public class SettingsForm : Form
         AddSpan(relBody, _showHijri);
         AddRow(relBody, Strings.T("label.hijriAdjust"), _hijriAdjust);
         AddSpan(relBody, _showEvents);
+        AddSpan(relBody, _sunnahFast);
 
         // --- Notifications card ---
         var notifBody = Body();
@@ -287,6 +289,7 @@ public class SettingsForm : Form
         _netSpeed.Checked = _cfg.ShowNetSpeed;
         _showHijri.Checked = _cfg.ShowHijriDate;
         _showEvents.Checked = _cfg.ShowIslamicEvents;
+        _sunnahFast.Checked = _cfg.SunnahFastReminder;
         _hijriAdjust.Value = Math.Clamp(_cfg.HijriAdjust, -2, 2);
 
         _remEnable.Checked = _cfg.ReminderEnabled;
@@ -495,6 +498,7 @@ public class SettingsForm : Form
         _cfg.ShowNetSpeed = _netSpeed.Checked;
         _cfg.ShowHijriDate = _showHijri.Checked;
         _cfg.ShowIslamicEvents = _showEvents.Checked;
+        _cfg.SunnahFastReminder = _sunnahFast.Checked;
         _cfg.HijriAdjust = Math.Clamp((int)_hijriAdjust.Value, -2, 2);
 
         _cfg.ReminderEnabled = _remEnable.Checked;
@@ -569,7 +573,7 @@ public class SettingsForm : Form
     {
         foreach (var cb in new[] { _method, _asr, _position, _language, _theme, _font, _fontSize, _monitor, _remSoundCombo, _azan }) StyleCombo(cb);
         foreach (var tb in new[] { _city, _paste, _lat, _lng, _offset, _remFile, _azanFile }) StyleText(tb);
-        foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _showHijri, _showEvents, _remEnable, _remSound }) StyleCheck(ck);
+        foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _showHijri, _showEvents, _sunnahFast, _remEnable, _remSound }) StyleCheck(ck);
         StyleNumeric(_remMins);
         StyleNumeric(_hijriAdjust);
         foreach (var n in new[] { _adjFajr, _adjDhuhr, _adjAsr, _adjMaghrib, _adjIsha }) StyleNumeric(n);
