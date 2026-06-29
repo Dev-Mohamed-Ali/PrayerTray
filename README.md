@@ -77,6 +77,9 @@ adhan (Makkah / Madinah), or a custom file. **Test**/**Stop** buttons preview ea
 - **Show internet speed** (off by default) — appends a live `↓ / ↑` throughput meter to the pill,
   updated every second from the active network adapter. Reads local NIC counters only — no network
   calls, no extra dependencies.
+- **Show ping (latency)** (off by default) — appends live latency in `ms` to the pill, probing a
+  configurable host (default `1.1.1.1`) about every 3 seconds with an async ICMP ping. Shows `— ms`
+  when the host is unreachable.
 
 **Religious:**
 
@@ -143,6 +146,7 @@ Source is grouped by concern (single `PrayerTray` assembly, nested namespaces):
 | `Services/AudioPlayer.cs` | Azan/reminder playback via winmm MCI + synthesized reminder tones |
 | `Services/LocationService.cs` | One-shot location detect (Windows Location → IP) + map-link parsing |
 | `Services/NetSpeed.cs` | Live ↓/↑ throughput from NIC byte counters (optional pill meter) |
+| `Services/Latency.cs` | Async ICMP ping latency (optional pill `ms` meter) |
 | `Native/Interop.cs` | Win32/DWM P/Invoke: taskbar, geometry, DPI, fullscreen detect, light/dark title bar |
 | `Native/Displays.cs` | Monitor enumeration + friendly names (CCD DisplayConfig API) |
 | `UI/Theme.cs` | Palettes (Dark/Light/Midnight/Slate/Warm) + Auto-follow + taskbar geometry |
