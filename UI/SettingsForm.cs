@@ -32,6 +32,7 @@ public class SettingsForm : Form
     readonly TextBox _lng = new() { Width = 200 };
     readonly ComboBox _method = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly ComboBox _asr = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+    readonly ComboBox _highLat = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly NumericUpDown _adjFajr = new() { Width = 90, Minimum = -60, Maximum = 60 };
     readonly NumericUpDown _adjDhuhr = new() { Width = 90, Minimum = -60, Maximum = 60 };
     readonly NumericUpDown _adjAsr = new() { Width = 90, Minimum = -60, Maximum = 60 };
@@ -70,6 +71,7 @@ public class SettingsForm : Form
     readonly List<string> _remSoundIds = new();
     readonly List<string> _azanIds = new();
     readonly List<string> _langIds = new();
+    static readonly string[] HighLatIds = { "AngleBased", "MidNight", "OneSeventh", "None" };
     readonly List<Button> _navButtons = new();
     readonly List<Panel> _sectionCards = new();
     static readonly int[] SizeSteps = { 80, 90, 100, 110, 125, 150 };
@@ -111,6 +113,7 @@ public class SettingsForm : Form
         var calcBody = Body();
         AddRow(calcBody, Strings.T("label.method"), _method);
         AddRow(calcBody, Strings.T("label.asr"), _asr);
+        AddRow(calcBody, Strings.T("label.highLat"), _highLat);
         AddSpan(calcBody, new Label { Text = Strings.T("label.tuneTimes"), AutoSize = true, ForeColor = Theme.TextDim });
         AddRow(calcBody, Strings.Prayer("fajr"), _adjFajr);
         AddRow(calcBody, Strings.Prayer("dhuhr"), _adjDhuhr);
@@ -202,6 +205,7 @@ public class SettingsForm : Form
         foreach (var (key, m) in CalcMethod.All) _method.Items.Add($"{key} — {m.Name}");
         _asr.Items.Add(Strings.T("asr.standard"));
         _asr.Items.Add(Strings.T("asr.hanafi"));
+        foreach (var id in HighLatIds) _highLat.Items.Add(Strings.T("highLat." + id));
         _position.Items.Add(Strings.T("side.right"));
         _position.Items.Add(Strings.T("side.left"));
         _langIds.Add("auto"); _language.Items.Add(Strings.T("lang.auto"));
@@ -269,6 +273,7 @@ public class SettingsForm : Form
         _lng.Text = _cfg.Longitude.ToString(CultureInfo.InvariantCulture);
         _method.SelectedIndex = Math.Max(0, IndexOfMethod(_cfg.Method));
         _asr.SelectedIndex = _cfg.Asr == (int)AsrJuristic.Hanafi ? 1 : 0;
+        _highLat.SelectedIndex = Math.Max(0, Array.IndexOf(HighLatIds, _cfg.HighLats));
         _adjFajr.Value = Math.Clamp(_cfg.FajrAdjust, -60, 60);
         _adjDhuhr.Value = Math.Clamp(_cfg.DhuhrAdjust, -60, 60);
         _adjAsr.Value = Math.Clamp(_cfg.AsrAdjust, -60, 60);
@@ -322,6 +327,7 @@ public class SettingsForm : Form
         _hijriAdjust.ValueChanged += (_, _) => Live(() => _cfg.HijriAdjust = (int)_hijriAdjust.Value);
         _method.SelectedIndexChanged += (_, _) => Live(() => _cfg.Method = new List<string>(CalcMethod.All.Keys)[_method.SelectedIndex]);
         _asr.SelectedIndexChanged += (_, _) => Live(() => _cfg.Asr = _asr.SelectedIndex == 1 ? (int)AsrJuristic.Hanafi : (int)AsrJuristic.Standard);
+        _highLat.SelectedIndexChanged += (_, _) => Live(() => _cfg.HighLats = HighLatIds[Math.Max(0, _highLat.SelectedIndex)]);
         _adjFajr.ValueChanged += (_, _) => Live(() => _cfg.FajrAdjust = (int)_adjFajr.Value);
         _adjDhuhr.ValueChanged += (_, _) => Live(() => _cfg.DhuhrAdjust = (int)_adjDhuhr.Value);
         _adjAsr.ValueChanged += (_, _) => Live(() => _cfg.AsrAdjust = (int)_adjAsr.Value);
@@ -483,6 +489,7 @@ public class SettingsForm : Form
         _cfg.Latitude = lat; _cfg.Longitude = lng;
         _cfg.Method = new List<string>(CalcMethod.All.Keys)[_method.SelectedIndex];
         _cfg.Asr = _asr.SelectedIndex == 1 ? (int)AsrJuristic.Hanafi : (int)AsrJuristic.Standard;
+        _cfg.HighLats = HighLatIds[Math.Max(0, _highLat.SelectedIndex)];
         _cfg.FajrAdjust = Math.Clamp((int)_adjFajr.Value, -60, 60);
         _cfg.DhuhrAdjust = Math.Clamp((int)_adjDhuhr.Value, -60, 60);
         _cfg.AsrAdjust = Math.Clamp((int)_adjAsr.Value, -60, 60);
@@ -575,7 +582,7 @@ public class SettingsForm : Form
     // --- theming ---
     void Stylize()
     {
-        foreach (var cb in new[] { _method, _asr, _position, _language, _theme, _font, _fontSize, _monitor, _remSoundCombo, _azan }) StyleCombo(cb);
+        foreach (var cb in new[] { _method, _asr, _highLat, _position, _language, _theme, _font, _fontSize, _monitor, _remSoundCombo, _azan }) StyleCombo(cb);
         foreach (var tb in new[] { _city, _paste, _lat, _lng, _offset, _remFile, _azanFile }) StyleText(tb);
         foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _showHijri, _showEvents, _sunnahFast, _fridayRem, _remEnable, _remSound }) StyleCheck(ck);
         StyleNumeric(_remMins);

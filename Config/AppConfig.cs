@@ -13,6 +13,7 @@ public class AppConfig
     public double Longitude { get; set; } = 39.8262;
     public string Method { get; set; } = "MWL";
     public int Asr { get; set; } = (int)AsrJuristic.Standard;
+    public string HighLats { get; set; } = "AngleBased"; // None | MidNight | OneSeventh | AngleBased
     // Per-prayer fine-tune in minutes (match the local mosque); clamped -60..60 on save.
     public int FajrAdjust { get; set; }
     public int DhuhrAdjust { get; set; }
@@ -59,6 +60,7 @@ public class AppConfig
     public void CopyFrom(AppConfig o)
     {
         City = o.City; Latitude = o.Latitude; Longitude = o.Longitude; Method = o.Method; Asr = o.Asr;
+        HighLats = o.HighLats;
         FajrAdjust = o.FajrAdjust; DhuhrAdjust = o.DhuhrAdjust; AsrAdjust = o.AsrAdjust;
         MaghribAdjust = o.MaghribAdjust; IshaAdjust = o.IshaAdjust;
         Use24Hour = o.Use24Hour; WidgetAnchor = o.WidgetAnchor; WidgetOffset = o.WidgetOffset; Theme = o.Theme;
@@ -104,6 +106,9 @@ public class AppConfig
 
     public CalcMethod CalcMethod =>
         CalcMethod.All.TryGetValue(Method, out var m) ? m : CalcMethod.All["MWL"];
+
+    public HighLatRule HighLat =>
+        Enum.TryParse<HighLatRule>(HighLats, out var r) ? r : HighLatRule.AngleBased;
 
     public Dictionary<string, int> TimeAdjust() => new()
     {

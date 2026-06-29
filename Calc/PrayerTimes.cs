@@ -5,6 +5,9 @@ namespace PrayerTray.Calc;
 
 public enum AsrJuristic { Standard = 1, Hanafi = 2 }
 
+// Night-portion rule for fajr/isha when the sun never reaches the angle (high latitudes).
+public enum HighLatRule { None = 0, MidNight = 1, OneSeventh = 2, AngleBased = 3 }
+
 public record CalcMethod(string Name, double FajrAngle, double IshaAngle, double IshaMinutes)
 {
     // IshaMinutes > 0 means isha is a fixed offset after maghrib (Makkah), not an angle.
@@ -25,7 +28,7 @@ public static class PrayerCalculator
 
     public static Dictionary<string, TimeSpan> Compute(
         DateTime date, double lat, double lng, double tzHours, CalcMethod method, AsrJuristic asr,
-        IReadOnlyDictionary<string, int>? offsets = null)
+        IReadOnlyDictionary<string, int>? offsets = null, HighLatRule highLat = HighLatRule.AngleBased)
     {
         double jDate = Julian(date.Year, date.Month, date.Day) - lng / (15.0 * 24.0);
 
@@ -49,11 +52,14 @@ public static class PrayerCalculator
         }
 
         // High-latitude safety: near the poles in summer the sun never reaches the fajr/isha
-        // angle, so ArcCos yields NaN. Fall back to the angle-based night-portion method.
-        double night = FixHour(t["sunrise"] - t["maghrib"]);
-        t["fajr"] = AdjustHighLat(t["fajr"], t["sunrise"], method.FajrAngle, night, ccw: true);
-        if (method.IshaMinutes <= 0)
-            t["isha"] = AdjustHighLat(t["isha"], t["maghrib"], method.IshaAngle, night, ccw: false);
+        // angle, so ArcCos yields NaN. Clamp to a night-portion fallback (None = leave as is).
+        if (highLat != HighLatRule.None)
+        {
+            double night = FixHour(t["sunrise"] - t["maghrib"]);
+            t["fajr"] = AdjustHighLat(t["fajr"], t["sunrise"], method.FajrAngle, night, highLat, ccw: true);
+            if (method.IshaMinutes <= 0)
+                t["isha"] = AdjustHighLat(t["isha"], t["maghrib"], method.IshaAngle, night, highLat, ccw: false);
+        }
 
         var result = new Dictionary<string, TimeSpan>();
         double adjust = tzHours - lng / 15.0;
@@ -66,9 +72,15 @@ public static class PrayerCalculator
         return result;
     }
 
-    static double AdjustHighLat(double time, double baseTime, double angle, double night, bool ccw)
+    static double AdjustHighLat(double time, double baseTime, double angle, double night, HighLatRule rule, bool ccw)
     {
-        double portion = (angle / 60.0) * night; // angle-based night fraction
+        double frac = rule switch
+        {
+            HighLatRule.MidNight => 1.0 / 2.0,
+            HighLatRule.OneSeventh => 1.0 / 7.0,
+            _ => angle / 60.0, // AngleBased
+        };
+        double portion = frac * night;
         double diff = ccw ? FixHour(baseTime - time) : FixHour(time - baseTime);
         if (double.IsNaN(time) || diff > portion)
             time = baseTime + (ccw ? -portion : portion);
