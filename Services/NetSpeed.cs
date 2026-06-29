@@ -32,9 +32,6 @@ static class NetSpeed
 
     public static string Format(long down, long up) => $"↓ {Rate(down)}  ↑ {Rate(up)}";
 
-    // Widest the value ever draws — reserve this in the pill so the per-second number doesn't jitter its width.
-    public const string Template = "↓ 999.9 MB/s  ↑ 999.9 MB/s";
-
     static string Rate(long bps)
     {
         if (bps < 1024) return $"{bps} B/s";

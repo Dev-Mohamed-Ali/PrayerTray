@@ -4,7 +4,6 @@ using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using PrayerTray.I18n;
 using PrayerTray.Native;
-using PrayerTray.Services;
 
 namespace PrayerTray.UI;
 
@@ -118,14 +117,13 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         Invalidate();
     }
 
-    // Live throughput, refreshed every second. Width is template-reserved, so only toggling the meter
-    // on/off resizes the pill — the per-second value just repaints.
+    // Live throughput, refreshed every second. Pill hugs the actual value, so it resizes whenever the
+    // value's width changes (the next 1s Tick repositions the window).
     public void SetNet(string net)
     {
         if (_net == net) return;
-        bool toggled = (_net.Length == 0) != (net.Length == 0);
         _net = net;
-        if (toggled) ResizeToContent();
+        ResizeToContent();
         RenderBuffer();
         Invalidate();
     }
@@ -137,7 +135,7 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         string left = $"{_name}  {_time}".Trim();
         int wLeft = (int)Math.Ceiling(_measure.MeasureString(left, fMain).Width);
         int wCount = (int)Math.Ceiling(_measure.MeasureString(_count, fCount).Width);
-        int wNet = _net.Length == 0 ? 0 : (int)Math.Ceiling(_measure.MeasureString(NetSpeed.Template, fMain).Width);
+        int wNet = _net.Length == 0 ? 0 : (int)Math.Ceiling(_measure.MeasureString(_net, fMain).Width);
         // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
         int tail = S(8) + S(6) + S(8) + wCount + (wNet > 0 ? S(8) + S(6) + S(8) + wNet : 0);
         _w = S(12) + S(8) + S(8) + wLeft + tail + S(12);
