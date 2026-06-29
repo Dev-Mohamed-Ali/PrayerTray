@@ -62,7 +62,8 @@ public class SettingsForm : Form
     readonly List<string> _remSoundIds = new();
     readonly List<string> _azanIds = new();
     readonly List<string> _langIds = new();
-    readonly List<Panel> _cards = new();
+    readonly List<Button> _navButtons = new();
+    readonly List<Panel> _sectionCards = new();
     static readonly int[] SizeSteps = { 80, 90, 100, 110, 125, 150 };
 
     /// <summary>Set when the user changes language; the host reopens the dialog so it rebuilds in the new
@@ -129,11 +130,51 @@ public class SettingsForm : Form
         AddRow(notifBody, Strings.T("label.azanFile"), Row(_azanFile, _azanBrowse));
         AddRow(notifBody, "", Row(_azanTest, _azanStop));
 
+        // --- side-nav: section list (left) + swappable content (right) ---
+        var sections = new (string title, Control body)[]
+        {
+            (Strings.T("card.location"), locBody),
+            (Strings.T("card.calculation"), calcBody),
+            (Strings.T("card.appearance"), appBody),
+            (Strings.T("card.notifications"), notifBody),
+        };
+
+        var content = new Panel { AutoSize = false, Margin = new Padding(8, 0, 0, 0) };
+        int maxW = 0, maxH = 0;
+        foreach (var (title, body) in sections)
+        {
+            var inner = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top, Margin = new Padding(0), Font = Font };
+            inner.Controls.Add(new Label { Text = title, AutoSize = true, ForeColor = Theme.Accent, Font = new Font(Theme.Family, 12f, FontStyle.Bold), Margin = new Padding(0, 0, 0, 10) }, 0, 0);
+            inner.Controls.Add(body, 0, 1);
+            var ps = inner.GetPreferredSize(Size.Empty);
+            maxW = Math.Max(maxW, ps.Width); maxH = Math.Max(maxH, ps.Height);
+            var card = new Panel { AutoSize = false, Dock = DockStyle.Fill, BackColor = Theme.Panel, Padding = new Padding(16), Visible = false };
+            card.Controls.Add(inner);
+            card.Resize += (_, _) => RoundPanel(card);
+            card.HandleCreated += (_, _) => RoundPanel(card);
+            content.Controls.Add(card);
+            _sectionCards.Add(card);
+        }
+        content.Size = new Size(maxW + 40, maxH + 40);
+
+        var nav = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = new Padding(0) };
+        for (int i = 0; i < sections.Length; i++)
+        {
+            int idx = i;
+            var b = new Button
+            {
+                Text = sections[i].title, Width = 132, Height = 36,
+                TextAlign = Strings.IsRtl ? ContentAlignment.MiddleRight : ContentAlignment.MiddleLeft,
+                Margin = new Padding(0, 0, 0, 6), FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false,
+            };
+            b.FlatAppearance.BorderSize = 0;
+            b.Click += (_, _) => SelectSection(idx);
+            nav.Controls.Add(b); _navButtons.Add(b);
+        }
+
         var grid = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = new Padding(0) };
-        grid.Controls.Add(Card(Strings.T("card.location"), locBody), 0, 0);
-        grid.Controls.Add(Card(Strings.T("card.calculation"), calcBody), 0, 1);
-        grid.Controls.Add(Card(Strings.T("card.appearance"), appBody), 1, 0);
-        grid.Controls.Add(Card(Strings.T("card.notifications"), notifBody), 1, 1);
+        grid.Controls.Add(nav, 0, 0);
+        grid.Controls.Add(content, 1, 0);
 
         // --- items ---
         // Calculation-method names are org/proper nouns -> not localized.
@@ -178,6 +219,7 @@ public class SettingsForm : Form
         StyleButton(ok, accent: true);
         WireEvents();
         SyncEnabled();
+        SelectSection(0);
         _ready = true;
 
         FormClosing += (_, _) =>
@@ -468,18 +510,17 @@ public class SettingsForm : Form
         t.RowCount++;
     }
 
-    Panel Card(string title, Control body)
+    void SelectSection(int idx)
     {
-        var header = new Label { Text = title, AutoSize = true, ForeColor = Theme.Accent, Font = new Font(Theme.Family, 10.5f, FontStyle.Bold), Margin = new Padding(0, 0, 0, 8) };
-        var inner = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Fill, Margin = new Padding(0) };
-        inner.Controls.Add(header, 0, 0);
-        inner.Controls.Add(body, 0, 1);
-        var card = new Panel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, BackColor = Theme.Panel, Padding = new Padding(14), Margin = new Padding(8), MinimumSize = new Size(260, 0) };
-        card.Controls.Add(inner);
-        card.Resize += (_, _) => RoundPanel(card);
-        card.HandleCreated += (_, _) => RoundPanel(card);
-        _cards.Add(card);
-        return card;
+        for (int i = 0; i < _sectionCards.Count; i++) _sectionCards[i].Visible = i == idx;
+        for (int i = 0; i < _navButtons.Count; i++) StyleNav(_navButtons[i], i == idx);
+    }
+
+    static void StyleNav(Button b, bool active)
+    {
+        b.BackColor = active ? Theme.Accent : Theme.Panel;
+        b.ForeColor = active ? OnAccent() : Theme.Text;
+        b.FlatAppearance.MouseOverBackColor = active ? Theme.Accent : Theme.BgHover;
     }
 
     static void RoundPanel(Panel p)
