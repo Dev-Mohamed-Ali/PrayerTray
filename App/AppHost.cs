@@ -195,7 +195,20 @@ public class AppHost : ApplicationContext
         var (nextKey, _, countdown) = CurrentOrNext();
         string hijri = _cfg.ShowHijriDate ? Strings.FormatHijri(DateTime.Today, _cfg.HijriAdjust) : "";
         _popup.ShowTimes(_cfg.City, DateTime.Today, _times, nextKey, _cfg.Use24Hour, ShownCountdown(countdown),
-            _widget.ScreenRect, _widget.AnchorRight, hijri);
+            _widget.ScreenRect, _widget.AnchorRight, hijri, TodaysEvent());
+    }
+
+    // Popup line: today's special day, else a countdown to the next major event (within ~6 weeks).
+    string TodaysEvent()
+    {
+        if (!_cfg.ShowIslamicEvents) return "";
+        var today = IslamicEvents.ForDate(DateTime.Today, _cfg.HijriAdjust);
+        if (today != null) return Strings.Event(today);
+        if (IslamicEvents.NextMajor(DateTime.Today, _cfg.HijriAdjust) is { } n && n.days <= 45)
+            return n.days == 1
+                ? Strings.F("event.tomorrow", Strings.Event(n.key))
+                : Strings.F("event.inDays", Strings.Event(n.key), n.days);
+        return "";
     }
 
     void OpenSettings() => RunSettings(null);

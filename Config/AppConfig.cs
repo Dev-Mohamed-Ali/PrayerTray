@@ -32,6 +32,7 @@ public class AppConfig
     public string Language { get; set; } = "auto";       // auto | en | ar
     public bool ShowHijriDate { get; set; } = true;
     public int HijriAdjust { get; set; } = 0;            // moon-sighting offset, clamped -2..2 on save
+    public bool ShowIslamicEvents { get; set; } = true;  // popup line for special days / next major event
     public string FontFamily { get; set; } = "Segoe UI";
     public int FontScalePct { get; set; } = 100;         // clamped 80–150 on save
 
@@ -62,6 +63,7 @@ public class AppConfig
         MonitorDeviceName = o.MonitorDeviceName; HideOnFullscreen = o.HideOnFullscreen; ShowNetSpeed = o.ShowNetSpeed;
         TimezoneHours = o.TimezoneHours;
         Language = o.Language; ShowHijriDate = o.ShowHijriDate; HijriAdjust = o.HijriAdjust;
+        ShowIslamicEvents = o.ShowIslamicEvents;
         FontFamily = o.FontFamily; FontScalePct = o.FontScalePct;
         PopupPinned = o.PopupPinned; PopupX = o.PopupX; PopupY = o.PopupY;
         ReminderEnabled = o.ReminderEnabled; ReminderMinutes = o.ReminderMinutes; ReminderSound = o.ReminderSound;

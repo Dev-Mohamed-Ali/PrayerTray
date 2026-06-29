@@ -60,6 +60,44 @@ internal static class Strings
         return $"{day} {months[m - 1]} {y}";
     }
 
+    public static string Event(string key)
+    {
+        var t = Lang == Language.Ar ? _eventsAr : _eventsEn;
+        return t.TryGetValue(key, out var v) ? v : key;
+    }
+
+    static readonly Dictionary<string, string> _eventsEn = new()
+    {
+        ["newYear"] = "Islamic New Year",
+        ["ashura"] = "Day of Ashura",
+        ["mawlid"] = "Mawlid al-Nabi",
+        ["isra"] = "Isra and Mi'raj",
+        ["midShaban"] = "Mid-Sha'ban",
+        ["ramadanStart"] = "Ramadan begins",
+        ["laylatQadr"] = "Laylat al-Qadr (27th)",
+        ["eidFitr"] = "Eid al-Fitr",
+        ["arafah"] = "Day of Arafah",
+        ["eidAdha"] = "Eid al-Adha",
+        ["tashreeq"] = "Days of Tashreeq",
+        ["whiteDays"] = "White days (fasting)",
+    };
+
+    static readonly Dictionary<string, string> _eventsAr = new()
+    {
+        ["newYear"] = "رأس السنة الهجرية",
+        ["ashura"] = "يوم عاشوراء",
+        ["mawlid"] = "المولد النبوي",
+        ["isra"] = "الإسراء والمعراج",
+        ["midShaban"] = "ليلة النصف من شعبان",
+        ["ramadanStart"] = "بداية رمضان",
+        ["laylatQadr"] = "ليلة القدر (27)",
+        ["eidFitr"] = "عيد الفطر",
+        ["arafah"] = "يوم عرفة",
+        ["eidAdha"] = "عيد الأضحى",
+        ["tashreeq"] = "أيام التشريق",
+        ["whiteDays"] = "الأيام البيض (صيام)",
+    };
+
     static readonly Dictionary<string, string> _prayerEn = new()
     {
         ["fajr"] = "Fajr", ["sunrise"] = "Sunrise", ["dhuhr"] = "Dhuhr",
@@ -142,7 +180,10 @@ internal static class Strings
         ["chk.remind"] = "Remind me before each prayer",
         ["chk.playSound"] = "Play a sound",
         ["chk.showHijri"] = "Show Hijri date",
+        ["chk.showEvents"] = "Show Islamic events & special days",
         ["chk.netSpeed"] = "Show internet speed",
+        ["event.inDays"] = "{0} in {1} days",
+        ["event.tomorrow"] = "{0} tomorrow",
         // settings — row labels
         ["label.city"] = "City (label):",
         ["label.lat"] = "Latitude:",
@@ -169,6 +210,7 @@ internal static class Strings
         ["card.location"] = "Location",
         ["card.calculation"] = "Calculation",
         ["card.appearance"] = "Appearance",
+        ["card.religious"] = "Religious",
         ["card.notifications"] = "Notifications",
         // settings — combo items
         ["asr.standard"] = "Standard (Shafi'i, Maliki, Hanbali)",
@@ -238,7 +280,10 @@ internal static class Strings
         ["chk.remind"] = "تذكيري قبل كل صلاة",
         ["chk.playSound"] = "تشغيل صوت",
         ["chk.showHijri"] = "إظهار التاريخ الهجري",
+        ["chk.showEvents"] = "إظهار المناسبات والأيام المميزة",
         ["chk.netSpeed"] = "إظهار سرعة الإنترنت",
+        ["event.inDays"] = "{0} خلال {1} يومًا",
+        ["event.tomorrow"] = "{0} غدًا",
         ["label.city"] = "المدينة (تسمية):",
         ["label.lat"] = "خط العرض:",
         ["label.lng"] = "خط الطول:",
@@ -263,6 +308,7 @@ internal static class Strings
         ["card.location"] = "الموقع",
         ["card.calculation"] = "الحساب",
         ["card.appearance"] = "المظهر",
+        ["card.religious"] = "ديني",
         ["card.notifications"] = "التنبيهات",
         ["asr.standard"] = "افتراضي (شافعي، مالكي، حنبلي)",
         ["asr.hanafi"] = "حنفي",

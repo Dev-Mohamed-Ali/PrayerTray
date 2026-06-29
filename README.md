@@ -78,6 +78,14 @@ adhan (Makkah / Madinah), or a custom file. **Test**/**Stop** buttons preview ea
   updated every second from the active network adapter. Reads local NIC counters only — no network
   calls, no extra dependencies.
 
+**Religious:**
+
+- **Hijri date** (Umm al-Qura) in the popup, with a ±2-day moon-sighting adjuster.
+- **Islamic events & special days** — the popup shows today's special day (Ramadan, the two Eids,
+  Day of Arafah, Ashura, Islamic New Year, Mawlid, the monthly white days, …) or, on an ordinary day,
+  a countdown to the next major event (e.g. *Ramadan in 12 days*). Derived from the Hijri date —
+  offline, follows the same moon-sighting adjuster.
+
 **Set location — two ways** (both auto-run/appear on first launch):
 
 - **Detect** (one click): tries the **Windows location service** first (accurate; needs *Settings ▸
@@ -124,6 +132,7 @@ Source is grouped by concern (single `PrayerTray` assembly, nested namespaces):
 | File | Role |
 |------|------|
 | `Calc/PrayerTimes.cs` | Offline astronomical calculation (validated, incl. high-latitude fix) |
+| `Calc/IslamicEvents.cs` | Islamic special days + next-major-event lookup from the Hijri date |
 | `Config/AppConfig.cs` | JSON config load/save |
 | `I18n/Strings.cs` | Embedded EN/AR string catalog + RTL/date helpers (no satellite assemblies) |
 | `Services/AudioPlayer.cs` | Azan/reminder playback via winmm MCI + synthesized reminder tones |
