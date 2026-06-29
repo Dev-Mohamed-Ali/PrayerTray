@@ -30,7 +30,7 @@ public class AppConfig
     // 999 = use system timezone for the date (handles DST); else fixed UTC offset hours.
     public double TimezoneHours { get; set; } = 999;
 
-    public string Language { get; set; } = "auto";       // auto | en | ar
+    public string Language { get; set; } = "auto";       // auto | en | ar | fr | tr | ur | id
     public bool ShowHijriDate { get; set; } = true;
     public int HijriAdjust { get; set; } = 0;            // moon-sighting offset, clamped -2..2 on save
     public bool ShowIslamicEvents { get; set; } = true;  // popup line for special days / next major event

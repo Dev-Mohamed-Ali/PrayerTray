@@ -121,9 +121,10 @@ internal static class Interop
 
     // --- UI language ---
     [DllImport("kernel32.dll")] static extern ushort GetUserDefaultUILanguage();
-    // LANG_ARABIC == 0x01 (low 10 bits of the LANGID); all Arabic sublanguages share it.
-    // Needed because InvariantGlobalization pins CurrentUICulture to invariant.
-    public static bool OsUiIsArabic() => (GetUserDefaultUILanguage() & 0x3FF) == 0x01;
+    // Primary language id = low 10 bits of the LANGID (sublanguages share it). Needed because
+    // InvariantGlobalization pins CurrentUICulture to invariant, so CultureInfo can't tell us.
+    public static int OsUiPrimaryLang() => GetUserDefaultUILanguage() & 0x3FF;
+    public static bool OsUiIsArabic() => OsUiPrimaryLang() == 0x01;
 
     // --- DPI ---
     [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr h);

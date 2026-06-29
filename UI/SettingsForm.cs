@@ -217,6 +217,10 @@ public class SettingsForm : Form
         _langIds.Add("auto"); _language.Items.Add(Strings.T("lang.auto"));
         _langIds.Add("en"); _language.Items.Add("English");
         _langIds.Add("ar"); _language.Items.Add("العربية");
+        _langIds.Add("fr"); _language.Items.Add("Français");
+        _langIds.Add("tr"); _language.Items.Add("Türkçe");
+        _langIds.Add("ur"); _language.Items.Add("اردو");
+        _langIds.Add("id"); _language.Items.Add("Bahasa Indonesia");
         foreach (var name in Theme.Names) _theme.Items.Add(name);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var f in FontFamily.Families) if (seen.Add(f.Name)) _font.Items.Add(f.Name);
