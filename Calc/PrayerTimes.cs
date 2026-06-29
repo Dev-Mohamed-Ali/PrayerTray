@@ -24,7 +24,8 @@ public static class PrayerCalculator
     const double RiseSetAngle = 0.833; // sun altitude at sunrise/sunset incl. refraction
 
     public static Dictionary<string, TimeSpan> Compute(
-        DateTime date, double lat, double lng, double tzHours, CalcMethod method, AsrJuristic asr)
+        DateTime date, double lat, double lng, double tzHours, CalcMethod method, AsrJuristic asr,
+        IReadOnlyDictionary<string, int>? offsets = null)
     {
         double jDate = Julian(date.Year, date.Month, date.Day) - lng / (15.0 * 24.0);
 
@@ -57,7 +58,11 @@ public static class PrayerCalculator
         var result = new Dictionary<string, TimeSpan>();
         double adjust = tzHours - lng / 15.0;
         foreach (var (k, v) in t)
-            result[k] = ToTimeSpan(v + adjust);
+        {
+            double val = v + adjust;
+            if (offsets != null && offsets.TryGetValue(k, out var off)) val += off / 60.0;
+            result[k] = ToTimeSpan(val);
+        }
         return result;
     }
 

@@ -32,6 +32,11 @@ public class SettingsForm : Form
     readonly TextBox _lng = new() { Width = 200 };
     readonly ComboBox _method = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly ComboBox _asr = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+    readonly NumericUpDown _adjFajr = new() { Width = 90, Minimum = -60, Maximum = 60 };
+    readonly NumericUpDown _adjDhuhr = new() { Width = 90, Minimum = -60, Maximum = 60 };
+    readonly NumericUpDown _adjAsr = new() { Width = 90, Minimum = -60, Maximum = 60 };
+    readonly NumericUpDown _adjMaghrib = new() { Width = 90, Minimum = -60, Maximum = 60 };
+    readonly NumericUpDown _adjIsha = new() { Width = 90, Minimum = -60, Maximum = 60 };
     readonly ComboBox _position = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly TextBox _offset = new() { Width = 200 };
     readonly ComboBox _language = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -103,6 +108,12 @@ public class SettingsForm : Form
         var calcBody = Body();
         AddRow(calcBody, Strings.T("label.method"), _method);
         AddRow(calcBody, Strings.T("label.asr"), _asr);
+        AddSpan(calcBody, new Label { Text = Strings.T("label.tuneTimes"), AutoSize = true, ForeColor = Theme.TextDim });
+        AddRow(calcBody, Strings.Prayer("fajr"), _adjFajr);
+        AddRow(calcBody, Strings.Prayer("dhuhr"), _adjDhuhr);
+        AddRow(calcBody, Strings.Prayer("asr"), _adjAsr);
+        AddRow(calcBody, Strings.Prayer("maghrib"), _adjMaghrib);
+        AddRow(calcBody, Strings.Prayer("isha"), _adjIsha);
 
         // --- Appearance card ---
         var appBody = Body();
@@ -248,6 +259,11 @@ public class SettingsForm : Form
         _lng.Text = _cfg.Longitude.ToString(CultureInfo.InvariantCulture);
         _method.SelectedIndex = Math.Max(0, IndexOfMethod(_cfg.Method));
         _asr.SelectedIndex = _cfg.Asr == (int)AsrJuristic.Hanafi ? 1 : 0;
+        _adjFajr.Value = Math.Clamp(_cfg.FajrAdjust, -60, 60);
+        _adjDhuhr.Value = Math.Clamp(_cfg.DhuhrAdjust, -60, 60);
+        _adjAsr.Value = Math.Clamp(_cfg.AsrAdjust, -60, 60);
+        _adjMaghrib.Value = Math.Clamp(_cfg.MaghribAdjust, -60, 60);
+        _adjIsha.Value = Math.Clamp(_cfg.IshaAdjust, -60, 60);
         _position.SelectedIndex = string.Equals(_cfg.WidgetAnchor, "Left", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
         _offset.Text = _cfg.WidgetOffset.ToString(CultureInfo.InvariantCulture);
         int li = _langIds.IndexOf(_cfg.Language); _language.SelectedIndex = li < 0 ? 0 : li;
@@ -292,6 +308,11 @@ public class SettingsForm : Form
         _hijriAdjust.ValueChanged += (_, _) => Live(() => _cfg.HijriAdjust = (int)_hijriAdjust.Value);
         _method.SelectedIndexChanged += (_, _) => Live(() => _cfg.Method = new List<string>(CalcMethod.All.Keys)[_method.SelectedIndex]);
         _asr.SelectedIndexChanged += (_, _) => Live(() => _cfg.Asr = _asr.SelectedIndex == 1 ? (int)AsrJuristic.Hanafi : (int)AsrJuristic.Standard);
+        _adjFajr.ValueChanged += (_, _) => Live(() => _cfg.FajrAdjust = (int)_adjFajr.Value);
+        _adjDhuhr.ValueChanged += (_, _) => Live(() => _cfg.DhuhrAdjust = (int)_adjDhuhr.Value);
+        _adjAsr.ValueChanged += (_, _) => Live(() => _cfg.AsrAdjust = (int)_adjAsr.Value);
+        _adjMaghrib.ValueChanged += (_, _) => Live(() => _cfg.MaghribAdjust = (int)_adjMaghrib.Value);
+        _adjIsha.ValueChanged += (_, _) => Live(() => _cfg.IshaAdjust = (int)_adjIsha.Value);
 
         _lat.Validated += (_, _) => Live(() => { if (TryLat(out var v)) _cfg.Latitude = v; });
         _lng.Validated += (_, _) => Live(() => { if (TryLng(out var v)) _cfg.Longitude = v; });
@@ -448,6 +469,11 @@ public class SettingsForm : Form
         _cfg.Latitude = lat; _cfg.Longitude = lng;
         _cfg.Method = new List<string>(CalcMethod.All.Keys)[_method.SelectedIndex];
         _cfg.Asr = _asr.SelectedIndex == 1 ? (int)AsrJuristic.Hanafi : (int)AsrJuristic.Standard;
+        _cfg.FajrAdjust = Math.Clamp((int)_adjFajr.Value, -60, 60);
+        _cfg.DhuhrAdjust = Math.Clamp((int)_adjDhuhr.Value, -60, 60);
+        _cfg.AsrAdjust = Math.Clamp((int)_adjAsr.Value, -60, 60);
+        _cfg.MaghribAdjust = Math.Clamp((int)_adjMaghrib.Value, -60, 60);
+        _cfg.IshaAdjust = Math.Clamp((int)_adjIsha.Value, -60, 60);
         _cfg.WidgetAnchor = _position.SelectedIndex == 1 ? "Left" : "Right";
         _cfg.Theme = Theme.Names[_theme.SelectedIndex];
         if (_font.SelectedItem is string fam && !string.IsNullOrWhiteSpace(fam)) _cfg.FontFamily = fam;
@@ -537,6 +563,7 @@ public class SettingsForm : Form
         foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _showHijri, _remEnable, _remSound }) StyleCheck(ck);
         StyleNumeric(_remMins);
         StyleNumeric(_hijriAdjust);
+        foreach (var n in new[] { _adjFajr, _adjDhuhr, _adjAsr, _adjMaghrib, _adjIsha }) StyleNumeric(n);
         var btns = new List<Button> { _openMap, _setPaste, _remBrowse, _remTest, _azanBrowse, _azanTest, _azanStop };
 #if !MANUAL_ONLY
         btns.Add(_detect);

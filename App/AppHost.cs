@@ -228,7 +228,7 @@ public class AppHost : ApplicationContext
     {
         var today = DateTime.Today;
         _times = PrayerCalculator.Compute(today, _cfg.Latitude, _cfg.Longitude,
-            _cfg.ResolveTimezone(today), _cfg.CalcMethod, (AsrJuristic)_cfg.Asr);
+            _cfg.ResolveTimezone(today), _cfg.CalcMethod, (AsrJuristic)_cfg.Asr, _cfg.TimeAdjust());
         _timesDate = today;
     }
 
@@ -342,7 +342,7 @@ public class AppHost : ApplicationContext
         }
         var tomorrow = DateTime.Today.AddDays(1);
         var t = PrayerCalculator.Compute(tomorrow, _cfg.Latitude, _cfg.Longitude,
-            _cfg.ResolveTimezone(tomorrow), _cfg.CalcMethod, (AsrJuristic)_cfg.Asr);
+            _cfg.ResolveTimezone(tomorrow), _cfg.CalcMethod, (AsrJuristic)_cfg.Asr, _cfg.TimeAdjust());
         var fajrAt = tomorrow.Add(t["fajr"]);
         return ("fajr", fajrAt, FormatCountdown(fajrAt - now));
     }

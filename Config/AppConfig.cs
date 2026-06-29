@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using PrayerTray.Calc;
@@ -12,6 +13,12 @@ public class AppConfig
     public double Longitude { get; set; } = 39.8262;
     public string Method { get; set; } = "MWL";
     public int Asr { get; set; } = (int)AsrJuristic.Standard;
+    // Per-prayer fine-tune in minutes (match the local mosque); clamped -60..60 on save.
+    public int FajrAdjust { get; set; }
+    public int DhuhrAdjust { get; set; }
+    public int AsrAdjust { get; set; }
+    public int MaghribAdjust { get; set; }
+    public int IshaAdjust { get; set; }
     public bool Use24Hour { get; set; } = false;
     public string WidgetAnchor { get; set; } = "Right"; // Left | Right
     public int WidgetOffset { get; set; } = 12;          // px gap from that edge (or from the tray)
@@ -49,6 +56,8 @@ public class AppConfig
     public void CopyFrom(AppConfig o)
     {
         City = o.City; Latitude = o.Latitude; Longitude = o.Longitude; Method = o.Method; Asr = o.Asr;
+        FajrAdjust = o.FajrAdjust; DhuhrAdjust = o.DhuhrAdjust; AsrAdjust = o.AsrAdjust;
+        MaghribAdjust = o.MaghribAdjust; IshaAdjust = o.IshaAdjust;
         Use24Hour = o.Use24Hour; WidgetAnchor = o.WidgetAnchor; WidgetOffset = o.WidgetOffset; Theme = o.Theme;
         MonitorDeviceName = o.MonitorDeviceName; HideOnFullscreen = o.HideOnFullscreen; ShowNetSpeed = o.ShowNetSpeed;
         TimezoneHours = o.TimezoneHours;
@@ -90,4 +99,10 @@ public class AppConfig
 
     public CalcMethod CalcMethod =>
         CalcMethod.All.TryGetValue(Method, out var m) ? m : CalcMethod.All["MWL"];
+
+    public Dictionary<string, int> TimeAdjust() => new()
+    {
+        ["fajr"] = FajrAdjust, ["dhuhr"] = DhuhrAdjust, ["asr"] = AsrAdjust,
+        ["maghrib"] = MaghribAdjust, ["isha"] = IshaAdjust,
+    };
 }

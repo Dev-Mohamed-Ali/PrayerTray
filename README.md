@@ -46,10 +46,15 @@ side/offset in **Settings**.
 
 ## Settings
 
-Right-click → **Settings** (a themed 2-column card grid; visual changes preview live, Save persists,
-Cancel reverts): city label, latitude/longitude, method (MWL / ISNA / Egypt / Makkah / Karachi),
-Asr juristic (Standard / Hanafi), 12/24h clock, widget side (Left/Right) + gap.
+Right-click → **Settings** (a themed dialog with a left **side-nav**: Location · Calculation ·
+Appearance · Notifications; visual changes preview live, Save persists, Cancel reverts): city label,
+latitude/longitude, method (MWL / ISNA / Egypt / Makkah / Karachi), Asr juristic (Standard / Hanafi),
+12/24h clock, widget side (Left/Right) + gap.
 Saved to `%APPDATA%\PrayerTray\config.json`. Defaults to Makkah until changed.
+
+**Fine-tune times** (Calculation section) — a per-prayer **± minutes** offset (Fajr/Dhuhr/Asr/Maghrib/Isha,
+−60…60) to match your local mosque when the computed time differs. Applies to the pill, popup, reminders,
+and azan; previews live.
 
 **Language:** `System default` (follows the Windows display language), `English`, or `العربية`.
 Arabic switches the whole UI — pill, popup, menus, and the Settings dialog — to **right-to-left**.
