@@ -34,6 +34,7 @@ public class AppConfig
     public int HijriAdjust { get; set; } = 0;            // moon-sighting offset, clamped -2..2 on save
     public bool ShowIslamicEvents { get; set; } = true;  // popup line for special days / next major event
     public bool SunnahFastReminder { get; set; } = false; // eve-before balloon for Sunnah fasting days
+    public bool FridayReminder { get; set; } = false;     // Friday: Al-Kahf at Fajr + Jumu'ah before Dhuhr
     public string FontFamily { get; set; } = "Segoe UI";
     public int FontScalePct { get; set; } = 100;         // clamped 80–150 on save
 
@@ -65,6 +66,7 @@ public class AppConfig
         TimezoneHours = o.TimezoneHours;
         Language = o.Language; ShowHijriDate = o.ShowHijriDate; HijriAdjust = o.HijriAdjust;
         ShowIslamicEvents = o.ShowIslamicEvents; SunnahFastReminder = o.SunnahFastReminder;
+        FridayReminder = o.FridayReminder;
         FontFamily = o.FontFamily; FontScalePct = o.FontScalePct;
         PopupPinned = o.PopupPinned; PopupX = o.PopupX; PopupY = o.PopupY;
         ReminderEnabled = o.ReminderEnabled; ReminderMinutes = o.ReminderMinutes; ReminderSound = o.ReminderSound;

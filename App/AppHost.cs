@@ -325,10 +325,28 @@ public class AppHost : ApplicationContext
         {
             var reason = SunnahFastReason(DateTime.Today.AddDays(1));
             if (reason != null)
-                try { _tray.ShowBalloonTip(8000, Strings.T("balloon.fastTitle"),
-                    Strings.F("balloon.fastBody", FastReasonName(reason)), ToolTipIcon.Info); }
-                catch { /* balloon hiccup must not kill the tick */ }
+                Balloon(Strings.T("balloon.fastTitle"), Strings.F("balloon.fastBody", FastReasonName(reason)));
         }
+
+        // Friday nudges: Surah Al-Kahf at Fajr, and a Jumu'ah heads-up shortly before Dhuhr.
+        if (_cfg.FridayReminder && now.DayOfWeek == DayOfWeek.Friday)
+        {
+            if (_times.TryGetValue("fajr", out var fts) && InWindow(now, DateTime.Today.Add(fts))
+                && _fired.Add($"{now:yyyyMMdd}:kahf"))
+                Balloon(Strings.T("balloon.jumuahTitle"), Strings.T("balloon.kahfBody"));
+            if (_times.TryGetValue("dhuhr", out var dts)
+                && InWindow(now, DateTime.Today.Add(dts).AddMinutes(-JumuahLeadMin))
+                && _fired.Add($"{now:yyyyMMdd}:jumuah"))
+                Balloon(Strings.T("balloon.jumuahTitle"), Strings.T("balloon.jumuahBody"));
+        }
+    }
+
+    const int JumuahLeadMin = 30;
+
+    void Balloon(string title, string body)
+    {
+        try { _tray.ShowBalloonTip(8000, title, body, ToolTipIcon.Info); }
+        catch { /* balloon hiccup must not kill the tick */ }
     }
 
     // Why tomorrow is a Sunnah fasting day (or null). Fixed days win; skips days where fasting is forbidden.

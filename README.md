@@ -88,6 +88,8 @@ adhan (Makkah / Madinah), or a custom file. **Test**/**Stop** buttons preview ea
 - **Sunnah fasting reminder** (off by default) — an eve-before balloon (at Maghrib) when the next day
   is a recommended fast: Mondays/Thursdays, the white days, Day of Arafah, or Ashura. Skips days where
   fasting is forbidden (the two Eids, Tashreeq).
+- **Friday: Jumu'ah & Al-Kahf reminder** (off by default) — on Fridays, a Surah Al-Kahf balloon at Fajr
+  and a Jumu'ah heads-up ~30 minutes before Dhuhr.
 
 **Set location — two ways** (both auto-run/appear on first launch):
 
