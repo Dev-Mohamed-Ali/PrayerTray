@@ -18,6 +18,9 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Stay in invariant mode (no ICU, Western digits) but let WinForms create the keyboard-layout
+         CultureInfo on WM_INPUTLANGCHANGE instead of throwing CultureNotFoundException. -->
+    <PredefinedCulturesOnly>false</PredefinedCulturesOnly>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(ManualOnly)'=='true'">
