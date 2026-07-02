@@ -38,6 +38,8 @@ Run the exe — it lands on the taskbar and (on first launch) helps you set your
   Jumu'ah heads-up on Fridays.
 - **Optional pill meters** — live internet speed (↓/↑) and/or ping latency (ms).
 - **Themes & fonts** — Auto (follows Windows light/dark) or a fixed palette; any installed font, 80–150%.
+- **Check for updates** — a tray-menu item that compares against the latest GitHub release and opens
+  the download page. Manual only — the network is never touched unless you click it.
 - **Localized** — English, العربية, Français, Türkçe, اردو, Indonesia. Arabic and Urdu switch the whole
   UI to right-to-left; numerals stay Western.
 

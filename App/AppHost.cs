@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using PrayerTray.Calc;
@@ -16,6 +18,8 @@ public class AppHost : ApplicationContext
 {
     static readonly string[] Order = { "fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha" };
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    // Task Manager's Startup-apps enable/disable state; first byte odd = disabled.
+    const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
     const string AppName = "PrayerTray";
 
     readonly NotifyIcon _tray;
@@ -38,6 +42,7 @@ public class AppHost : ApplicationContext
     {
         _ui = System.Threading.SynchronizationContext.Current ?? new System.Threading.SynchronizationContext();
         _cfg = AppConfig.Load();
+        HealStartupPath();
         ToastService.Init();
         Strings.Init(_cfg.Language);
         ApplyTheme();
@@ -172,9 +177,31 @@ public class AppHost : ApplicationContext
         menu.Items.Add(startup);
         menu.Items.Add(Strings.T("menu.settings"), null, (_, _) => OpenSettings());
         menu.Items.Add(Strings.T("menu.stopSound"), null, (_, _) => AudioPlayer.Stop());
+        var updates = new ToolStripMenuItem(Strings.T("menu.checkUpdates"));
+        updates.Click += async (_, _) => await CheckUpdates(updates);
+        menu.Items.Add(updates);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Strings.T("menu.exit"), null, (_, _) => ExitApp());
         return menu;
+    }
+
+    async Task CheckUpdates(ToolStripMenuItem item)
+    {
+        item.Enabled = false;
+        try
+        {
+            var info = await UpdateChecker.FetchLatestAsync();
+            if (info is null) { Notify(Strings.T("app.name"), Strings.T("update.error")); return; }
+            if (UpdateChecker.IsNewer(info))
+            {
+                string v = $"v{info.Latest.ToString(3)}";
+                if (MessageBox.Show(Strings.F("update.availableBody", v), Strings.T("update.availableTitle"),
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                    try { Process.Start(new ProcessStartInfo(info.Url) { UseShellExecute = true }); } catch { }
+            }
+            else Notify(Strings.T("app.name"), Strings.F("update.none", $"v{UpdateChecker.Current.ToString(3)}"));
+        }
+        finally { item.Enabled = true; }
     }
 
     // Rebuild the tray menu after a language change (menu items are created once, in BuildMenu).
@@ -453,18 +480,46 @@ public class AppHost : ApplicationContext
         DataTick();
     }
 
+    static string StartupCommand() => $"\"{Environment.ProcessPath}\"";
+
     static bool IsStartupEnabled()
     {
         using var k = Registry.CurrentUser.OpenSubKey(RunKey);
-        return k?.GetValue(AppName) != null;
+        if (k?.GetValue(AppName) is null) return false;
+        using var a = Registry.CurrentUser.OpenSubKey(ApprovedKey);
+        return a?.GetValue(AppName) is not byte[] b || b.Length == 0 || (b[0] & 1) == 0;
     }
 
-    static void SetStartup(bool enable)
+    void SetStartup(bool enable)
     {
-        using var k = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
-        if (k is null) return;
-        if (enable) k.SetValue(AppName, $"\"{Environment.ProcessPath}\"");
-        else k.DeleteValue(AppName, throwOnMissingValue: false);
+        try
+        {
+            using var k = Registry.CurrentUser.CreateSubKey(RunKey);
+            using var a = Registry.CurrentUser.CreateSubKey(ApprovedKey);
+            if (enable)
+            {
+                k.SetValue(AppName, StartupCommand());
+                a.SetValue(AppName, new byte[12] { 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
+            }
+            else
+            {
+                k.DeleteValue(AppName, throwOnMissingValue: false);
+                a.DeleteValue(AppName, throwOnMissingValue: false);
+            }
+        }
+        catch { Notify(Strings.T("app.name"), Strings.T("msg.startupError")); }
+    }
+
+    // The Run value survives the exe being moved/renamed; re-point it at the running exe on launch.
+    static void HealStartupPath()
+    {
+        try
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
+            if (k?.GetValue(AppName) is string cur && cur != StartupCommand())
+                k.SetValue(AppName, StartupCommand());
+        }
+        catch { /* best effort */ }
     }
 
     void ExitApp()

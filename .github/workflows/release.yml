@@ -18,10 +18,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      # Bake the tag version into the assembly so the in-app update check can compare against it.
+      - name: Compute version from tag
+        shell: pwsh
+        run: |
+          $v = if ($env:GITHUB_REF_NAME -match '^v(\d+\.\d+\.\d+)$') { $Matches[1] } else { '1.0.0' }
+          "APP_VERSION=$v" >> $env:GITHUB_ENV
+
       # Self-contained, compressed single file — runs on Win10 1809+/Win11 with nothing installed.
       - name: Publish standalone (self-contained, auto-detect location)
         run: >
           dotnet publish PrayerTray.csproj -c Release -r win-x64 --self-contained true
+          -p:Version=${{ env.APP_VERSION }}
           -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none
           -o publish/auto
@@ -30,6 +38,7 @@ jobs:
       - name: Publish dotnet8-dependent (framework-dependent, manual location)
         run: >
           dotnet publish PrayerTray.csproj -c Release -p:ManualOnly=true -r win-x64 --self-contained false
+          -p:Version=${{ env.APP_VERSION }}
           -p:PublishSingleFile=true -p:DebugType=none
           -o publish/manual
 

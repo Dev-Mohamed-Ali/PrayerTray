@@ -25,6 +25,7 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     string _name = "—", _time = "", _count = "…", _net = "";
     bool _hover, _tracking, _paused, _suppressed;
     int _w = 160, _h = 32;
+    int _netSlot, _netShrinkTicks; // stable width slot for the net/ping tail (anti-jitter)
     float _scale = 1f;
     Rectangle _lastRect = Rectangle.Empty;
     Bitmap? _buffer;
@@ -117,8 +118,8 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         Invalidate();
     }
 
-    // Live throughput, refreshed every second. Pill hugs the actual value, so it resizes whenever the
-    // value's width changes (the next 1s Tick repositions the window).
+    // Live throughput, refreshed every second. The tail gets a quantized slot with shrink hysteresis
+    // so the pill width stays stable instead of jittering with every value change.
     public void SetNet(string net)
     {
         if (_net == net) return;
@@ -135,11 +136,23 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         string left = $"{_name}  {_time}".Trim();
         int wLeft = (int)Math.Ceiling(_measure.MeasureString(left, fMain).Width);
         int wCount = (int)Math.Ceiling(_measure.MeasureString(_count, fCount).Width);
-        int wNet = _net.Length == 0 ? 0 : (int)Math.Ceiling(_measure.MeasureString(_net, fMain).Width);
+        int wNet = NetSlot(_net.Length == 0 ? 0 : (int)Math.Ceiling(_measure.MeasureString(_net, fMain).Width));
         // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
         int tail = S(8) + S(6) + S(8) + wCount + (wNet > 0 ? S(8) + S(6) + S(8) + wNet : 0);
         _w = S(12) + S(8) + S(8) + wLeft + tail + S(12);
         _w = Math.Max(S(110), _w);
+    }
+
+    // Quantize the measured tail width up to S(24) steps; grow immediately, shrink only after the
+    // value has stayed a step smaller for ~10 consecutive samples. Kills the per-second width jitter.
+    int NetSlot(int measured)
+    {
+        if (measured == 0) { _netSlot = 0; _netShrinkTicks = 0; return 0; }
+        int step = Math.Max(1, S(24));
+        int slot = (measured + step - 1) / step * step;
+        if (slot >= _netSlot) { _netSlot = slot; _netShrinkTicks = 0; }
+        else if (++_netShrinkTicks >= 10) { _netSlot = slot; _netShrinkTicks = 0; }
+        return _netSlot;
     }
 
     Screen TargetScreen()
@@ -165,8 +178,10 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         bool onItsBar = tb != IntPtr.Zero &&
                         string.Equals(Screen.FromHandle(tb).DeviceName, screen.DeviceName, StringComparison.OrdinalIgnoreCase);
 
+        float prevScale = _scale;
         _scale = Interop.Scale(onItsBar ? tb : Handle);
         if (_scale <= 0) _scale = 1f;
+        if (_scale != prevScale) { _netSlot = 0; _netShrinkTicks = 0; } // slot is scale-dependent
 
         Rectangle strip;        // the bar/edge the pill sits on
         int rightEdge, leftEdge;
