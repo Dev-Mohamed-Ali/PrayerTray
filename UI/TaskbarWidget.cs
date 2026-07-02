@@ -25,7 +25,9 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     string _name = "—", _time = "", _count = "…", _net = "";
     bool _hover, _tracking, _paused, _suppressed;
     int _w = 160, _h = 32;
-    int _netSlot, _netShrinkTicks; // stable width slot for the net/ping tail (anti-jitter)
+    int _netSlot;                  // stable width slot for the net/ping tail (anti-jitter)
+    long _netPeakAt;               // when the current slot was last (re)confirmed
+    float _netFontScale = 1f; string _netFamily = ""; // measurement basis the slot was taken under
     float _scale = 1f;
     Rectangle _lastRect = Rectangle.Empty;
     Bitmap? _buffer;
@@ -143,15 +145,21 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         _w = Math.Max(S(110), _w);
     }
 
-    // Quantize the measured tail width up to S(24) steps; grow immediately, shrink only after the
-    // value has stayed a step smaller for ~10 consecutive samples. Kills the per-second width jitter.
+    // Quantize the measured tail width up to S(24) steps with a 10s peak-hold: grow immediately,
+    // shrink once nothing wider was seen for 10s. The slot is measured under the current font
+    // scale/family, so a font change resets it instantly (else the old width stays latched).
     int NetSlot(int measured)
     {
-        if (measured == 0) { _netSlot = 0; _netShrinkTicks = 0; return 0; }
+        if (Theme.FontScale != _netFontScale || Theme.Family != _netFamily)
+        {
+            _netFontScale = Theme.FontScale; _netFamily = Theme.Family;
+            _netSlot = 0;
+        }
+        if (measured == 0) { _netSlot = 0; return 0; }
         int step = Math.Max(1, S(24));
         int slot = (measured + step - 1) / step * step;
-        if (slot >= _netSlot) { _netSlot = slot; _netShrinkTicks = 0; }
-        else if (++_netShrinkTicks >= 10) { _netSlot = slot; _netShrinkTicks = 0; }
+        long now = Environment.TickCount64;
+        if (slot >= _netSlot || now - _netPeakAt >= 10_000) { _netSlot = slot; _netPeakAt = now; }
         return _netSlot;
     }
 
@@ -181,7 +189,7 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         float prevScale = _scale;
         _scale = Interop.Scale(onItsBar ? tb : Handle);
         if (_scale <= 0) _scale = 1f;
-        if (_scale != prevScale) { _netSlot = 0; _netShrinkTicks = 0; } // slot is scale-dependent
+        if (_scale != prevScale) _netSlot = 0; // slot is DPI-dependent too
 
         Rectangle strip;        // the bar/edge the pill sits on
         int rightEdge, leftEdge;
@@ -262,9 +270,10 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
                 xr -= _measure.MeasureString(_count, fCount).Width + S(8);
                 using (var b = new SolidBrush(Theme.TextDim))
                     g.DrawString("·", fMain, b, new RectangleF(0, 0, xr, _h), far);
-                xr -= S(6) + S(8);
+                // Flush against the left pad so the slot's quantization slack stays interior (invisible).
                 using (var b = new SolidBrush(Theme.TextDim))
-                    g.DrawString(_net, fMain, b, new RectangleF(0, 0, xr, _h), far);
+                    g.DrawString(_net, fMain, b, new RectangleF(S(12), 0, _w - S(12), _h),
+                        new StringFormat { LineAlignment = StringAlignment.Center });
             }
             return;
         }
@@ -286,9 +295,10 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
             x += _measure.MeasureString(_count, fCount).Width + S(8);
             using (var b = new SolidBrush(Theme.TextDim))
                 g.DrawString("·", fMain, b, new RectangleF(x, 0, S(6), _h), sf);
-            x += S(6) + S(8);
+            // Flush against the right pad so the slot's quantization slack stays interior (invisible).
             using (var b = new SolidBrush(Theme.TextDim))
-                g.DrawString(_net, fMain, b, new RectangleF(x, 0, _w, _h), sf);
+                g.DrawString(_net, fMain, b, new RectangleF(0, 0, _w - S(12), _h),
+                    new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Far });
         }
     }
 
