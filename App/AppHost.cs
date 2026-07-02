@@ -283,18 +283,22 @@ public class AppHost : ApplicationContext
     {
         if (_cfg.ShowNetSpeed || _cfg.ShowPing)
         {
-            string tail = "";
+            // The template mirrors the tail's worst realistic shape; the widget reserves its width
+            // once per font/DPI so the pill stays a static size while the values fluctuate.
+            string tail = "", tmpl = "";
             if (_cfg.ShowNetSpeed)
             {
                 var (down, up) = NetSpeed.Sample();
                 tail = NetSpeed.Format(down, up);
+                tmpl = "↓ 88.8 MB/s  ↑ 88.8 MB/s";
             }
             if (_cfg.ShowPing)
             {
                 string p = Latency.Format(Latency.Sample());
                 tail = tail.Length == 0 ? p : $"{tail}   {p}";
+                tmpl = tmpl.Length == 0 ? "888 ms" : $"{tmpl}   888 ms";
             }
-            _widget.SetNet(tail);
+            _widget.SetNet(tail, tmpl);
         }
         _widget.Tick();
         if (_nextAt is DateTime a)

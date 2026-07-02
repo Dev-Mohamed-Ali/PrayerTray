@@ -25,8 +25,10 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     string _name = "—", _time = "", _count = "…", _net = "";
     bool _hover, _tracking, _paused, _suppressed;
     int _w = 160, _h = 32;
-    int _netSlot;                  // stable width slot for the net/ping tail (anti-jitter)
-    long _netPeakAt;               // when the current slot was last (re)confirmed
+    string _netTemplate = "";      // worst-case tail text; its width is the static tail slot
+    string? _netTemplateMeasured;  // template string _netTemplateW was measured from
+    int _netTemplateW = -1;        // cached template width (-1 = re-measure)
+    int _netOverW;                 // latched live width when it exceeds the template (rare)
     float _netFontScale = 1f; string _netFamily = ""; // measurement basis the slot was taken under
     float _scale = 1f;
     Rectangle _lastRect = Rectangle.Empty;
@@ -120,12 +122,12 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         Invalidate();
     }
 
-    // Live throughput, refreshed every second. The tail gets a quantized slot with shrink hysteresis
-    // so the pill width stays stable instead of jittering with every value change.
-    public void SetNet(string net)
+    // Live throughput/ping, refreshed every second. The tail reserves the width of a worst-case
+    // template once per font/DPI, so the pill width is static while the values fluctuate.
+    public void SetNet(string net, string template = "")
     {
-        if (_net == net) return;
-        _net = net;
+        if (_net == net && _netTemplate == template) return;
+        _net = net; _netTemplate = template;
         ResizeToContent();
         RenderBuffer();
         Invalidate();
@@ -138,29 +140,33 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         string left = $"{_name}  {_time}".Trim();
         int wLeft = (int)Math.Ceiling(_measure.MeasureString(left, fMain).Width);
         int wCount = (int)Math.Ceiling(_measure.MeasureString(_count, fCount).Width);
-        int wNet = NetSlot(_net.Length == 0 ? 0 : (int)Math.Ceiling(_measure.MeasureString(_net, fMain).Width));
+        int wNet = NetSlot(_net.Length == 0 ? 0 : (int)Math.Ceiling(_measure.MeasureString(_net, fMain).Width), fMain);
         // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
         int tail = S(8) + S(6) + S(8) + wCount + (wNet > 0 ? S(8) + S(6) + S(8) + wNet : 0);
         _w = S(12) + S(8) + S(8) + wLeft + tail + S(12);
         _w = Math.Max(S(110), _w);
     }
 
-    // Quantize the measured tail width up to S(24) steps with a 10s peak-hold: grow immediately,
-    // shrink once nothing wider was seen for 10s. The slot is measured under the current font
-    // scale/family, so a font change resets it instantly (else the old width stays latched).
-    int NetSlot(int measured)
+    // Static tail slot: the width of the worst-case template, measured once per font/DPI basis.
+    // Live text wider than the template (rare, e.g. GB/s) latches until the next basis reset,
+    // keeping the width from following every value change.
+    int NetSlot(int measured, Font fMain)
     {
         if (Theme.FontScale != _netFontScale || Theme.Family != _netFamily)
         {
             _netFontScale = Theme.FontScale; _netFamily = Theme.Family;
-            _netSlot = 0;
+            _netTemplateW = -1; _netOverW = 0;
         }
-        if (measured == 0) { _netSlot = 0; return 0; }
-        int step = Math.Max(1, S(24));
-        int slot = (measured + step - 1) / step * step;
-        long now = Environment.TickCount64;
-        if (slot >= _netSlot || now - _netPeakAt >= 10_000) { _netSlot = slot; _netPeakAt = now; }
-        return _netSlot;
+        if (measured == 0) { _netOverW = 0; return 0; }
+        if (_netTemplateW < 0 || _netTemplateMeasured != _netTemplate)
+        {
+            _netTemplateMeasured = _netTemplate;
+            _netTemplateW = _netTemplate.Length == 0 ? 0
+                : (int)Math.Ceiling(_measure.MeasureString(_netTemplate, fMain).Width);
+            _netOverW = 0;
+        }
+        if (measured > _netTemplateW) _netOverW = Math.Max(_netOverW, measured);
+        return Math.Max(_netTemplateW, _netOverW);
     }
 
     Screen TargetScreen()
@@ -189,7 +195,7 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         float prevScale = _scale;
         _scale = Interop.Scale(onItsBar ? tb : Handle);
         if (_scale <= 0) _scale = 1f;
-        if (_scale != prevScale) _netSlot = 0; // slot is DPI-dependent too
+        if (_scale != prevScale) { _netTemplateW = -1; _netOverW = 0; } // slot is DPI-dependent too
 
         Rectangle strip;        // the bar/edge the pill sits on
         int rightEdge, leftEdge;
@@ -267,13 +273,13 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
                 g.DrawString(_count, fCount, b, new RectangleF(0, 0, xr, _h), far);
             if (_net.Length > 0)
             {
-                xr -= _measure.MeasureString(_count, fCount).Width + S(8);
+                // Mirrored: tail flush against the left pad, separator travelling with it.
+                float netW = _measure.MeasureString(_net, fMain).Width;
+                var near = new StringFormat { LineAlignment = StringAlignment.Center };
                 using (var b = new SolidBrush(Theme.TextDim))
-                    g.DrawString("·", fMain, b, new RectangleF(0, 0, xr, _h), far);
-                // Flush against the left pad so the slot's quantization slack stays interior (invisible).
+                    g.DrawString(_net, fMain, b, new RectangleF(S(12), 0, _w - S(12), _h), near);
                 using (var b = new SolidBrush(Theme.TextDim))
-                    g.DrawString(_net, fMain, b, new RectangleF(S(12), 0, _w - S(12), _h),
-                        new StringFormat { LineAlignment = StringAlignment.Center });
+                    g.DrawString("·", fMain, b, new RectangleF(S(12) + netW + S(8), 0, S(6), _h), near);
             }
             return;
         }
@@ -292,10 +298,12 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
             g.DrawString(_count, fCount, b, new RectangleF(x, 0, _w, _h), sf);
         if (_net.Length > 0)
         {
-            x += _measure.MeasureString(_count, fCount).Width + S(8);
+            // Tail flush against the right pad, separator travelling with it: any slot slack lands
+            // between the countdown and the "·", reading as section spacing rather than a hole.
+            float netW = _measure.MeasureString(_net, fMain).Width;
+            float dotX = _w - S(12) - netW - S(8) - S(6);
             using (var b = new SolidBrush(Theme.TextDim))
-                g.DrawString("·", fMain, b, new RectangleF(x, 0, S(6), _h), sf);
-            // Flush against the right pad so the slot's quantization slack stays interior (invisible).
+                g.DrawString("·", fMain, b, new RectangleF(dotX, 0, S(6), _h), sf);
             using (var b = new SolidBrush(Theme.TextDim))
                 g.DrawString(_net, fMain, b, new RectangleF(0, 0, _w - S(12), _h),
                     new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Far });
