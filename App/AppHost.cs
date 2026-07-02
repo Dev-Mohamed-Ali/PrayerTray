@@ -152,7 +152,8 @@ public class AppHost : ApplicationContext
         _widget.Offset = _cfg.WidgetOffset;
         _widget.HideOnFullscreen = _cfg.HideOnFullscreen;
         Latency.SetHost(_cfg.PingHost);
-        if (!_cfg.ShowNetSpeed && !_cfg.ShowPing) _widget.SetNet(""); // PosTick fills it when enabled
+        if (!_cfg.ShowNetSpeed && !_cfg.ShowPing)
+            _widget.SetNet(Array.Empty<(string, string)>()); // PosTick fills it when enabled
     }
 
     static Icon LoadAppIcon()
@@ -283,22 +284,20 @@ public class AppHost : ApplicationContext
     {
         if (_cfg.ShowNetSpeed || _cfg.ShowPing)
         {
-            // The template mirrors the tail's worst realistic shape; the widget reserves its width
-            // once per font/DPI so the pill stays a static size while the values fluctuate.
-            string tail = "", tmpl = "";
+            // Templates must cover common live values or the slot latch resizes the pill mid-session;
+            // CompactMeters trades that guarantee for tighter 2-digit slots.
+            bool compact = _cfg.CompactMeters;
+            var segs = new List<(string text, string tmpl)>(3);
             if (_cfg.ShowNetSpeed)
             {
-                var (down, up) = NetSpeed.Sample();
-                tail = NetSpeed.Format(down, up);
-                tmpl = "↓ 88.8 MB/s  ↑ 88.8 MB/s";
+                var (rxRate, txRate) = NetSpeed.Sample();
+                var (down, up) = NetSpeed.FormatParts(rxRate, txRate);
+                segs.Add((down, compact ? "↓ 8.8 MB/s" : "↓ 88.8 MB/s"));
+                segs.Add((up, compact ? "↑ 8.8 MB/s" : "↑ 88.8 MB/s"));
             }
             if (_cfg.ShowPing)
-            {
-                string p = Latency.Format(Latency.Sample());
-                tail = tail.Length == 0 ? p : $"{tail}   {p}";
-                tmpl = tmpl.Length == 0 ? "888 ms" : $"{tmpl}   888 ms";
-            }
-            _widget.SetNet(tail, tmpl);
+                segs.Add((Latency.Format(Latency.Sample()), compact ? "88 ms" : "888 ms"));
+            _widget.SetNet(segs);
         }
         _widget.Tick();
         if (_nextAt is DateTime a)

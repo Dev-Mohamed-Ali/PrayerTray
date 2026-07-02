@@ -29,6 +29,8 @@ public class AppConfig
     public bool ShowNetSpeed { get; set; } = false;      // append live ↓/↑ throughput to the pill
     public bool ShowPing { get; set; } = false;          // append live ping latency (ms) to the pill
     public string PingHost { get; set; } = "1.1.1.1";    // host to ping for latency
+    // Narrow meter slots sized for 2-digit values; pill may widen once when a value outgrows them.
+    public bool CompactMeters { get; set; } = false;
     // 999 = use system timezone for the date (handles DST); else fixed UTC offset hours.
     public double TimezoneHours { get; set; } = 999;
 
@@ -68,7 +70,7 @@ public class AppConfig
         MaghribAdjust = o.MaghribAdjust; IshaAdjust = o.IshaAdjust;
         Use24Hour = o.Use24Hour; WidgetAnchor = o.WidgetAnchor; WidgetOffset = o.WidgetOffset; Theme = o.Theme;
         MonitorDeviceName = o.MonitorDeviceName; HideOnFullscreen = o.HideOnFullscreen; ShowNetSpeed = o.ShowNetSpeed;
-        ShowPing = o.ShowPing; PingHost = o.PingHost;
+        ShowPing = o.ShowPing; PingHost = o.PingHost; CompactMeters = o.CompactMeters;
         TimezoneHours = o.TimezoneHours;
         Language = o.Language; ShowHijriDate = o.ShowHijriDate; HijriAdjust = o.HijriAdjust;
         ShowIslamicEvents = o.ShowIslamicEvents; SunnahFastReminder = o.SunnahFastReminder;

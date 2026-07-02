@@ -56,6 +56,7 @@ public class SettingsForm : Form
     readonly CheckBox _netSpeed = new() { Text = Strings.T("chk.netSpeed"), AutoSize = true };
     readonly CheckBox _ping = new() { Text = Strings.T("chk.ping"), AutoSize = true };
     readonly TextBox _pingHost = new() { Width = 200 };
+    readonly CheckBox _compactMeters = new() { Text = Strings.T("chk.compactMeters"), AutoSize = true };
     readonly NumericUpDown _hijriAdjust = new() { Width = 90, Minimum = -2, Maximum = 2 };
 
     readonly CheckBox _richToasts = new() { Text = Strings.T("chk.richToasts"), AutoSize = true };
@@ -142,6 +143,7 @@ public class SettingsForm : Form
         AddSpan(appBody, _netSpeed);
         AddSpan(appBody, _ping);
         AddRow(appBody, Strings.T("label.pingHost"), _pingHost);
+        AddSpan(appBody, _compactMeters);
 
         // --- Religious card ---
         var relBody = Body();
@@ -310,6 +312,7 @@ public class SettingsForm : Form
         _netSpeed.Checked = _cfg.ShowNetSpeed;
         _ping.Checked = _cfg.ShowPing;
         _pingHost.Text = _cfg.PingHost;
+        _compactMeters.Checked = _cfg.CompactMeters;
         _showHijri.Checked = _cfg.ShowHijriDate;
         _showEvents.Checked = _cfg.ShowIslamicEvents;
         _sunnahFast.Checked = _cfg.SunnahFastReminder;
@@ -338,9 +341,10 @@ public class SettingsForm : Form
         _position.SelectedIndexChanged += (_, _) => Live(() => _cfg.WidgetAnchor = _position.SelectedIndex == 1 ? "Left" : "Right");
         _h24.CheckedChanged += (_, _) => Live(() => _cfg.Use24Hour = _h24.Checked);
         _hideFs.CheckedChanged += (_, _) => Live(() => _cfg.HideOnFullscreen = _hideFs.Checked);
-        _netSpeed.CheckedChanged += (_, _) => Live(() => _cfg.ShowNetSpeed = _netSpeed.Checked);
+        _netSpeed.CheckedChanged += (_, _) => { Live(() => _cfg.ShowNetSpeed = _netSpeed.Checked); SyncEnabled(); };
         _ping.CheckedChanged += (_, _) => { Live(() => _cfg.ShowPing = _ping.Checked); SyncEnabled(); };
         _pingHost.TextChanged += (_, _) => Live(() => _cfg.PingHost = _pingHost.Text.Trim());
+        _compactMeters.CheckedChanged += (_, _) => Live(() => _cfg.CompactMeters = _compactMeters.Checked);
         _showHijri.CheckedChanged += (_, _) => { Live(() => _cfg.ShowHijriDate = _showHijri.Checked); SyncEnabled(); };
         _showEvents.CheckedChanged += (_, _) => Live(() => _cfg.ShowIslamicEvents = _showEvents.Checked);
         _hijriAdjust.ValueChanged += (_, _) => Live(() => _cfg.HijriAdjust = (int)_hijriAdjust.Value);
@@ -414,6 +418,7 @@ public class SettingsForm : Form
         _azanTest.Enabled = _azanIds[Math.Max(0, _azan.SelectedIndex)] != "None";
         _hijriAdjust.Enabled = _showHijri.Checked;
         _pingHost.Enabled = _ping.Checked;
+        _compactMeters.Enabled = _netSpeed.Checked || _ping.Checked;
     }
 
     string CurrentReminderPath()
@@ -529,6 +534,7 @@ public class SettingsForm : Form
         _cfg.ShowNetSpeed = _netSpeed.Checked;
         _cfg.ShowPing = _ping.Checked;
         _cfg.PingHost = _pingHost.Text.Trim();
+        _cfg.CompactMeters = _compactMeters.Checked;
         _cfg.ShowHijriDate = _showHijri.Checked;
         _cfg.ShowIslamicEvents = _showEvents.Checked;
         _cfg.SunnahFastReminder = _sunnahFast.Checked;
@@ -608,7 +614,7 @@ public class SettingsForm : Form
     {
         foreach (var cb in new[] { _method, _asr, _highLat, _position, _language, _theme, _font, _fontSize, _monitor, _remSoundCombo, _azan }) StyleCombo(cb);
         foreach (var tb in new[] { _city, _paste, _lat, _lng, _offset, _pingHost, _remFile, _azanFile }) StyleText(tb);
-        foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _ping, _showHijri, _showEvents, _sunnahFast, _fridayRem, _richToasts, _remEnable, _remSound }) StyleCheck(ck);
+        foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _ping, _compactMeters, _showHijri, _showEvents, _sunnahFast, _fridayRem, _richToasts, _remEnable, _remSound }) StyleCheck(ck);
         StyleNumeric(_remMins);
         StyleNumeric(_hijriAdjust);
         foreach (var n in new[] { _adjFajr, _adjDhuhr, _adjAsr, _adjMaghrib, _adjIsha }) StyleNumeric(n);

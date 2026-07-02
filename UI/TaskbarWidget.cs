@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -22,14 +23,13 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
     readonly string? _deviceName; // target monitor (null = primary)
     public string? DeviceName => _deviceName;
 
-    string _name = "—", _time = "", _count = "…", _net = "";
+    string _name = "—", _time = "", _count = "…";
     bool _hover, _tracking, _paused, _suppressed;
     int _w = 160, _h = 32;
-    string _netTemplate = "";      // worst-case tail text; its width is the static tail slot
-    string? _netTemplateMeasured;  // template string _netTemplateW was measured from
-    int _netTemplateW = -1;        // cached template width (-1 = re-measure)
-    int _netOverW;                 // latched live width when it exceeds the template (rare)
-    float _netFontScale = 1f; string _netFamily = ""; // measurement basis the slot was taken under
+    // Net/ping tail segments; each slot = max(template, widest live text), grow-only per font/DPI basis.
+    (string text, string tmpl)[] _segs = Array.Empty<(string, string)>();
+    int[] _segSlots = Array.Empty<int>();
+    float _netFontScale = 1f; string _netFamily = ""; // measurement basis the slots were taken under
     float _scale = 1f;
     Rectangle _lastRect = Rectangle.Empty;
     Bitmap? _buffer;
@@ -122,12 +122,26 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         Invalidate();
     }
 
-    // Live throughput/ping, refreshed every second. The tail reserves the width of a worst-case
-    // template once per font/DPI, so the pill width is static while the values fluctuate.
-    public void SetNet(string net, string template = "")
+    // Live throughput/ping, refreshed every second; fixed per-segment slots keep the width static.
+    public void SetNet(IReadOnlyList<(string text, string tmpl)> segs)
     {
-        if (_net == net && _netTemplate == template) return;
-        _net = net; _netTemplate = template;
+        if (segs.Count == _segs.Length)
+        {
+            bool same = true, tmplChanged = false;
+            for (int i = 0; i < _segs.Length; i++)
+            {
+                if (_segs[i] != segs[i]) same = false;
+                if (_segs[i].tmpl != segs[i].tmpl) tmplChanged = true;
+            }
+            if (same) return;
+            if (tmplChanged) Array.Clear(_segSlots); // e.g. compact-width toggle -> re-seed slots
+        }
+        else
+        {
+            _segSlots = new int[segs.Count]; // segment set changed -> fresh slots
+        }
+        _segs = new (string, string)[segs.Count];
+        for (int i = 0; i < segs.Count; i++) _segs[i] = segs[i];
         ResizeToContent();
         RenderBuffer();
         Invalidate();
@@ -140,33 +154,32 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         string left = $"{_name}  {_time}".Trim();
         int wLeft = (int)Math.Ceiling(_measure.MeasureString(left, fMain).Width);
         int wCount = (int)Math.Ceiling(_measure.MeasureString(_count, fCount).Width);
-        int wNet = NetSlot(_net.Length == 0 ? 0 : (int)Math.Ceiling(_measure.MeasureString(_net, fMain).Width), fMain);
+        int wNet = NetWidth(fMain);
         // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
         int tail = S(8) + S(6) + S(8) + wCount + (wNet > 0 ? S(8) + S(6) + S(8) + wNet : 0);
         _w = S(12) + S(8) + S(8) + wLeft + tail + S(12);
         _w = Math.Max(S(110), _w);
     }
 
-    // Static tail slot: the width of the worst-case template, measured once per font/DPI basis.
-    // Live text wider than the template (rare, e.g. GB/s) latches until the next basis reset,
-    // keeping the width from following every value change.
-    int NetSlot(int measured, Font fMain)
+    // Total tail width from the per-segment slots (grow-only; reset on font/DPI basis change).
+    int NetWidth(Font fMain)
     {
+        if (_segs.Length == 0) return 0;
         if (Theme.FontScale != _netFontScale || Theme.Family != _netFamily)
         {
             _netFontScale = Theme.FontScale; _netFamily = Theme.Family;
-            _netTemplateW = -1; _netOverW = 0;
+            Array.Clear(_segSlots);
         }
-        if (measured == 0) { _netOverW = 0; return 0; }
-        if (_netTemplateW < 0 || _netTemplateMeasured != _netTemplate)
+        int total = 0;
+        for (int i = 0; i < _segs.Length; i++)
         {
-            _netTemplateMeasured = _netTemplate;
-            _netTemplateW = _netTemplate.Length == 0 ? 0
-                : (int)Math.Ceiling(_measure.MeasureString(_netTemplate, fMain).Width);
-            _netOverW = 0;
+            if (_segSlots[i] == 0) // fresh basis: seed from the template, measured once
+                _segSlots[i] = (int)Math.Ceiling(_measure.MeasureString(_segs[i].tmpl, fMain).Width);
+            int w = (int)Math.Ceiling(_measure.MeasureString(_segs[i].text, fMain).Width);
+            if (w > _segSlots[i]) _segSlots[i] = w;
+            total += _segSlots[i] + (i > 0 ? S(5) : 0);
         }
-        if (measured > _netTemplateW) _netOverW = Math.Max(_netOverW, measured);
-        return Math.Max(_netTemplateW, _netOverW);
+        return total;
     }
 
     Screen TargetScreen()
@@ -195,7 +208,14 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         float prevScale = _scale;
         _scale = Interop.Scale(onItsBar ? tb : Handle);
         if (_scale <= 0) _scale = 1f;
-        if (_scale != prevScale) { _netTemplateW = -1; _netOverW = 0; } // slot is DPI-dependent too
+        if (_scale != prevScale)
+        {
+            Array.Clear(_segSlots); // slots are DPI-dependent too
+            // Re-render now — SetNet's unchanged-text short-circuit won't repaint for us.
+            ResizeToContent();
+            RenderBuffer();
+            Invalidate();
+        }
 
         Rectangle strip;        // the bar/edge the pill sits on
         int rightEdge, leftEdge;
@@ -271,15 +291,19 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
             xr -= S(6) + S(8);
             using (var b = new SolidBrush(Theme.Good))
                 g.DrawString(_count, fCount, b, new RectangleF(0, 0, xr, _h), far);
-            if (_net.Length > 0)
+            if (_segs.Length > 0)
             {
-                // Mirrored: tail flush against the left pad, separator travelling with it.
-                float netW = _measure.MeasureString(_net, fMain).Width;
+                // Mirrored: tail block at the left pad, segments left-aligned, "·" at the block's end.
+                int wNet = NetWidth(fMain);
                 var near = new StringFormat { LineAlignment = StringAlignment.Center };
-                using (var b = new SolidBrush(Theme.TextDim))
-                    g.DrawString(_net, fMain, b, new RectangleF(S(12), 0, _w - S(12), _h), near);
-                using (var b = new SolidBrush(Theme.TextDim))
-                    g.DrawString("·", fMain, b, new RectangleF(S(12) + netW + S(8), 0, S(6), _h), near);
+                float xl = S(12);
+                using var dim = new SolidBrush(Theme.TextDim);
+                for (int i = _segs.Length - 1; i >= 0; i--)
+                {
+                    g.DrawString(_segs[i].text, fMain, dim, new RectangleF(xl, 0, _w - xl, _h), near);
+                    xl += _segSlots[i] + S(5);
+                }
+                g.DrawString("·", fMain, dim, new RectangleF(S(12) + wNet + S(8), 0, S(6), _h), near);
             }
             return;
         }
@@ -296,17 +320,21 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         x += S(6) + S(8);
         using (var b = new SolidBrush(Theme.Good))
             g.DrawString(_count, fCount, b, new RectangleF(x, 0, _w, _h), sf);
-        if (_net.Length > 0)
+        if (_segs.Length > 0)
         {
-            // Tail flush against the right pad, separator travelling with it: any slot slack lands
-            // between the countdown and the "·", reading as section spacing rather than a hole.
-            float netW = _measure.MeasureString(_net, fMain).Width;
-            float dotX = _w - S(12) - netW - S(8) - S(6);
+            // "·" at the block's static start; segments right-aligned in their slots (units anchored).
+            int wNet = NetWidth(fMain);
+            float dotX = _w - S(12) - wNet - S(8) - S(6);
             using (var b = new SolidBrush(Theme.TextDim))
                 g.DrawString("·", fMain, b, new RectangleF(dotX, 0, S(6), _h), sf);
-            using (var b = new SolidBrush(Theme.TextDim))
-                g.DrawString(_net, fMain, b, new RectangleF(0, 0, _w - S(12), _h),
-                    new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Far });
+            var farSf = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Far };
+            float xr = _w - S(12);
+            using var dim = new SolidBrush(Theme.TextDim);
+            for (int i = _segs.Length - 1; i >= 0; i--)
+            {
+                g.DrawString(_segs[i].text, fMain, dim, new RectangleF(0, 0, xr, _h), farSf);
+                xr -= _segSlots[i] + S(5);
+            }
         }
     }
 

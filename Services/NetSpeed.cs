@@ -30,7 +30,8 @@ static class NetSpeed
         return (down, up);
     }
 
-    public static string Format(long down, long up) => $"↓ {Rate(down)}  ↑ {Rate(up)}";
+    public static (string down, string up) FormatParts(long down, long up) =>
+        ($"↓ {Rate(down)}", $"↑ {Rate(up)}");
 
     static string Rate(long bps)
     {
