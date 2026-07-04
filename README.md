@@ -8,7 +8,7 @@ Native Win32 written in Rust — **one ~3.5 MB exe, zero dependencies, no runtim
 times computed **fully offline** (PrayTimes.org algorithm). Idle footprint ~30 MB RAM.
 
 ```
-● Dhuhr  12:59 PM · 1:15
+● Dhuhr  12:59 PM · 1:15 · ↓ 1.2 MB/s · ↑ 88 KB/s · 24 ms · Σ 3.4 GB
 ```
 
 ## Download
@@ -25,6 +25,9 @@ set your location. Settings from a v1.x install are picked up automatically (sam
   open and drag it anywhere.
 - **Reminders & azan** — optional toast + sound N minutes before each prayer; play a bundled adhan
   (Makkah / Madinah) or your own file at prayer time; optional iqamah countdown.
+- **Network meters** *(optional)* — live download/upload speed, latency (TCP :443 or ICMP), and a
+  running per-day data total appended to the pill as a compact, fixed-width tail. A **Data usage**
+  window shows per-day history (kept 90 days). Meter one chosen adapter or all of them.
 - **Rich notifications** — Action Center toasts, tray balloons as fallback.
 - **Stays in sync** — recomputes on clock/timezone change or resume-from-sleep.
 - **Hijri date & Islamic events** — Umm al-Qura date with a moon-sighting adjuster; special-day and
@@ -37,13 +40,10 @@ set your location. Settings from a v1.x install are picked up automatically (sam
 - **Localized** — English, العربية, Français, Türkçe, اردو, Indonesia. Arabic and Urdu switch the whole
   UI to right-to-left; numerals stay Western.
 
-The v1.x net-speed / ping pill meters and data-usage tracking are not in v2.0 yet — they return in a
-v2.x release. Their settings survive the upgrade untouched.
-
 ## Settings
 
 Right-click the pill (or tray icon) → **Settings** — a themed dialog (Location · Calculation ·
-Appearance · Religious · Notifications) with live preview. Set city, lat/long, calculation method
+Appearance · Network · Religious · Notifications) with live preview. Set city, lat/long, calculation method
 (MWL / ISNA / Egypt / Makkah / Karachi), Asr juristic, high-latitude rule, per-prayer ± minute
 fine-tuning, clock format, widget side/gap, monitor, and more. Saved to
 `%APPDATA%\PrayerTray\config.json` (same file across v1 and v2); defaults to Makkah until changed.

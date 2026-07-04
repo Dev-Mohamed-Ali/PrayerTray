@@ -32,9 +32,9 @@ from a paper spec:
   `tools/convert_strings.py`. Never hand-edit generated files; rerun the tools.
 
 Config compatibility is a hard contract: `%APPDATA%\PrayerTray\config.json`, PascalCase via serde,
-sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). Fields for features not
-yet ported (net meters, data usage, NIC picker) stay in the struct so a v1 config round-trips
-losslessly.
+sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). The data-usage store
+(`%APPDATA%\PrayerTray\usage.json`, `{"yyyy-MM-dd":{"Rx":n,"Tx":n}}`, 90-day retention) is
+byte-compatible with the C# build's file too.
 
 ## How it sits on the taskbar — and why (Windows 11)
 
@@ -89,6 +89,22 @@ stay Western.
 carrying `PKEY_AppUserModel_ID` (created via `IShellLinkW`/`IPropertyStore`) — the same recipe and
 the same AUMID as v1.x, so upgraders don't get duplicate shortcuts. Tray balloons are the fallback.
 
+## Network metering
+
+The optional pill tail (down/up speed, ping, per-day data total) samples once per second on the
+existing `TIMER_POS` tick — one `GetIfTable2` snapshot per tick feeds both the speed meters and the
+usage accumulator. Byte counters come from `MIB_IF_ROW2` (`InOctets`/`OutOctets`), keyed by the
+adapter's braced GUID so it matches the C# `NetInterfaceId`. A shared `delta()` handles the subtle
+cases — a counter reset or a re-appearing adapter primes the baseline instead of injecting its
+since-boot total as one spike, and a >10 s gap (sleep/resume) re-primes rather than backfilling.
+The NIC picker lists only currently-up, non-filter, non-tunnel adapters (raw `GetIfTable2` also
+surfaces the NDIS/WFP/QoS filter pseudo-interfaces that `.NET`'s `GetAllNetworkInterfaces` hid).
+
+Ping runs off-thread: a short-lived probe (ICMP `IcmpSendEcho`, or a TCP :443 connect timing) at
+most every 3 s writes an `AtomicI32`; the next tick reads it, so the UI never blocks. The tail keeps
+a **stable width** via grow-only per-segment slots seeded from worst-case templates and reset only
+on a font/DPI-scale change — live values never make the pill jitter.
+
 ## Releases
 
 Pushing a `vX.Y.Z` tag triggers `.github/workflows/release.yml`: the tag version is patched into
@@ -111,14 +127,17 @@ release.
 | `native/taskbar.rs` | Taskbar find/geometry, fullscreen detect, DPI |
 | `native/displays.rs` | Monitor enumeration + CCD friendly names |
 | `native/startup.rs` | HKCU Run key + StartupApproved handling |
-| `native/time.rs` | Local time + DST-aware UTC offset |
+| `native/net.rs` | Adapter byte counters (GetIfTable2), NIC list, ICMP ping |
+| `native/time.rs` | Local time + DST-aware UTC offset + monotonic tick |
 | `ui/gdip.rs` | RAII GDI+ wrappers — the only unsafe-heavy drawing zone |
 | `ui/window.rs` | Window-class/wndproc trampoline plumbing |
 | `ui/widget.rs` | The overlay pill — owned by the taskbar, hooks, DPI, RTL |
 | `ui/popup.rs` | Today's-times popup (pin, drag, saved position) |
+| `ui/usage.rs` | Data-usage dialog (SysListView32 per-day history) |
 | `ui/settings.rs` + `ui/controls.rs` | Settings dialog + themed native controls |
 | `ui/icon.rs` | Tray icon, tooltip, balloon fallback |
 | `ui/theme.rs` | Palettes (Dark/Light/Midnight/Slate/Warm) + Auto-follow |
+| `services/net_speed.rs` + `services/latency.rs` + `services/data_usage.rs` | Speed sampler, ping probe, per-day usage store |
 | `services/audio.rs` | Azan/reminder playback via MCI + synthesized tones |
 | `services/toast.rs` | Action Center toasts + AUMID shortcut |
 | `services/location.rs` | WinRT geolocation → IP fallback + map-link parsing |

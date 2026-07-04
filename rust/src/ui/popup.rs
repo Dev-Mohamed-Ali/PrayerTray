@@ -44,6 +44,7 @@ pub struct Popup {
     hijri: String,
     event: String,
     fast: String,
+    usage: String,
     chip_override: String,
     countdown: String,
     next_label: String,
@@ -74,6 +75,7 @@ impl Popup {
             hijri: String::new(),
             event: String::new(),
             fast: String::new(),
+            usage: String::new(),
             chip_override: String::new(),
             countdown: String::new(),
             next_label: String::new(),
@@ -151,6 +153,7 @@ impl Popup {
         hijri: &str,
         event: &str,
         fast: &str,
+        usage: &str,
         chip_override: &str,
     ) {
         self.widget_rect = widget_rect;
@@ -160,6 +163,7 @@ impl Popup {
         self.hijri = hijri.into();
         self.event = event.into();
         self.fast = fast.into();
+        self.usage = usage.into();
         self.chip_override = chip_override.into();
         self.countdown = countdown.into();
         self.next_label = rows.iter().find(|r| r.is_next).map(|r| r.label.clone()).unwrap_or_default();
@@ -167,7 +171,8 @@ impl Popup {
 
         self.width = scaled(268);
         let row_h = scaled(38);
-        self.height = self.header_h() + self.rows.len() as i32 * row_h + scaled(16);
+        let footer = if self.usage.is_empty() { 0 } else { scaled(22) };
+        self.height = self.header_h() + self.rows.len() as i32 * row_h + footer + scaled(16);
         self.position();
         self.invalidate();
         unsafe {
@@ -371,6 +376,16 @@ impl Popup {
             g.draw_string(&r.label, font, fg, rect, &sf_label);
             g.draw_string(&r.time, font, fg, rect, &sf_time);
             y += row_h;
+        }
+
+        if !self.usage.is_empty() {
+            g.draw_string(
+                &self.usage,
+                &f_date,
+                &dim,
+                gdip::rectf(pad, y as f32 + scaled(4) as f32, w - 2.0 * pad, scaled(18) as f32),
+                &sf_hdr,
+            );
         }
     }
 

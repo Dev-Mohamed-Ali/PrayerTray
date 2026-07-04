@@ -1,5 +1,8 @@
 pub mod audio;
+pub mod data_usage;
 pub mod http;
+pub mod latency;
 pub mod location;
+pub mod net_speed;
 pub mod toast;
 pub mod update;

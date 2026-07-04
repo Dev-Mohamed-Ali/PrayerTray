@@ -4,7 +4,26 @@
 use crate::datetime::Date;
 use windows::Win32::Foundation::SYSTEMTIME;
 use windows::Win32::System::Time::TzSpecificLocalTimeToSystemTime;
-use windows::Win32::System::SystemInformation::GetLocalTime;
+use windows::Win32::System::SystemInformation::{GetLocalTime, GetTickCount64};
+
+/// Milliseconds since boot (monotonic); matches C# Environment.TickCount64.
+pub fn tick_count64() -> u64 {
+    unsafe { GetTickCount64() }
+}
+
+/// Local date as "yyyy-MM-dd".
+pub fn today_key() -> String {
+    let st = unsafe { GetLocalTime() };
+    format!("{:04}-{:02}-{:02}", st.wYear, st.wMonth, st.wDay)
+}
+
+/// Date `days` before today as "yyyy-MM-dd" (for retention cutoffs).
+pub fn day_key_offset(days: i64) -> String {
+    let (d, _, _) = now_local();
+    let rd = d.to_rd() - days;
+    let back = Date::from_rd(rd);
+    format!("{:04}-{:02}-{:02}", back.year, back.month, back.day)
+}
 
 /// Current local date + minutes/seconds since midnight.
 pub fn now_local() -> (Date, u32, u32) {

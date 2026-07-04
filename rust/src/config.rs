@@ -37,7 +37,7 @@ pub struct AppConfig {
     pub theme: String, // Auto | Dark | Light | Midnight | Slate | Warm
     pub monitor_device_name: Option<String>,
     pub hide_on_fullscreen: bool,
-    // Net-meter fields: deferred to v2 in the Rust build, kept so a C# config round-trips.
+    // Net-meter fields (speed/ping/data-usage tail + NIC picker).
     pub show_net_speed: bool,
     pub show_ping: bool,
     pub ping_host: String,

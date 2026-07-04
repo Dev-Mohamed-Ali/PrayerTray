@@ -1,6 +1,6 @@
 //! The next-prayer taskbar pill, port of UI/TaskbarWidget.cs: a top-level always-on-top
-//! overlay owned by the taskbar window so it rides the taskbar's z-band. Net-meter tail
-//! segments are deferred to v2 with the meters themselves.
+//! overlay owned by the taskbar window so it rides the taskbar's z-band. Optional net-meter
+//! tail segments (speed/ping/usage) render in fixed grow-only slots to keep the width stable.
 
 use crate::i18n;
 use crate::native::{displays, taskbar};
@@ -61,6 +61,10 @@ pub struct Widget {
     name: String,
     time: String,
     count: String,
+    segs: Vec<(String, String)>, // (live text, worst-case template) per tail segment
+    seg_slots: Vec<i32>,         // grow-only slot width per segment
+    net_font_scale: f32,         // slot basis: cleared when this or the family changes
+    net_family: String,
     hover: bool,
     tracking: bool,
     paused: bool,
@@ -96,6 +100,10 @@ impl Widget {
             name: "—".into(),
             time: String::new(),
             count: "…".into(),
+            segs: Vec::new(),
+            seg_slots: Vec::new(),
+            net_font_scale: 0.0,
+            net_family: String::new(),
             hover: false,
             tracking: false,
             paused: false,
@@ -189,8 +197,69 @@ impl Widget {
         self.invalidate();
     }
 
+    /// Live throughput/ping/usage segments, refreshed every second; fixed per-segment slots
+    /// keep the pill width static. Each entry is (live text, worst-case template).
+    pub fn set_net(&mut self, segs: Vec<(String, String)>) {
+        if segs.len() == self.segs.len() {
+            let mut same = true;
+            let mut tmpl_changed = false;
+            #[allow(clippy::needless_range_loop)] // parallel index into self.segs and segs
+            for i in 0..self.segs.len() {
+                if self.segs[i] != segs[i] {
+                    same = false;
+                }
+                if self.segs[i].1 != segs[i].1 {
+                    tmpl_changed = true;
+                }
+            }
+            if same {
+                return;
+            }
+            if tmpl_changed {
+                self.seg_slots.iter_mut().for_each(|s| *s = 0); // compact toggle -> re-seed
+            }
+        } else {
+            self.seg_slots = vec![0; segs.len()]; // segment set changed -> fresh slots
+        }
+        self.segs = segs;
+        self.resize_to_content();
+        self.render_buffer();
+        self.invalidate();
+    }
+
     fn left_text(&self) -> String {
         format!("{}  {}", self.name, self.time).trim().to_string()
+    }
+
+    // Between-segment separator: [gap] · [gap], same rhythm as the main "·".
+    fn seg_gap(&self) -> i32 {
+        self.s(6.0) * 3
+    }
+
+    /// Total tail width from the per-segment slots (grow-only; reset on font/DPI basis change).
+    fn net_width(&mut self, f_main: &Font) -> i32 {
+        if self.segs.is_empty() {
+            return 0;
+        }
+        if theme::font_scale() != self.net_font_scale || theme::family() != self.net_family {
+            self.net_font_scale = theme::font_scale();
+            self.net_family = theme::family();
+            self.seg_slots.iter_mut().for_each(|s| *s = 0);
+        }
+        let mut total = 0;
+        for i in 0..self.segs.len() {
+            if self.seg_slots[i] == 0 {
+                let tmpl = self.segs[i].1.clone();
+                self.seg_slots[i] = self.measure(&tmpl, f_main).ceil() as i32;
+            }
+            let text = self.segs[i].0.clone();
+            let w = self.measure(&text, f_main).ceil() as i32;
+            if w > self.seg_slots[i] {
+                self.seg_slots[i] = w;
+            }
+            total += self.seg_slots[i] + if i > 0 { self.seg_gap() } else { 0 };
+        }
+        total
     }
 
     fn resize_to_content(&mut self) {
@@ -198,8 +267,13 @@ impl Widget {
         let f_count = self.count_font();
         let w_left = self.measure(&self.left_text(), &f_main).ceil() as i32;
         let w_count = self.measure(&self.count, &f_count).ceil() as i32;
-        // [pad][dot][gap] left [gap] · [gap] count [pad]
-        let tail = self.s(8.0) + self.s(6.0) + self.s(8.0) + w_count;
+        let w_net = self.net_width(&f_main);
+        // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
+        let tail = self.s(8.0)
+            + self.s(6.0)
+            + self.s(8.0)
+            + w_count
+            + if w_net > 0 { self.s(8.0) + self.s(6.0) + self.s(8.0) + w_net } else { 0 };
         self.w = (self.s(12.0) + self.s(8.0) + self.s(8.0) + w_left + tail + self.s(12.0))
             .max(self.s(110.0));
     }
@@ -287,6 +361,7 @@ impl Widget {
             self.scale = 1.0;
         }
         if self.scale != prev_scale {
+            self.seg_slots.iter_mut().for_each(|s| *s = 0); // slots are DPI-dependent too
             self.resize_to_content();
             self.render_buffer();
             self.invalidate();
@@ -369,6 +444,7 @@ impl Widget {
             let left = self.left_text();
             let wf = self.w as f32;
             let hf = self.h as f32;
+            let w_net = self.net_width(&f_main);
 
             let accent = SolidBrush::new(pal.accent);
             let text = SolidBrush::new(pal.text);
@@ -387,6 +463,21 @@ impl Widget {
                 g.draw_string("·", &f_main, &dim, rect(0.0, xr), &far);
                 xr -= (self.s(6.0) + self.s(8.0)) as f32;
                 g.draw_string(&self.count, &f_count, &good, rect(0.0, xr), &far);
+                if !self.segs.is_empty() {
+                    // Mirrored tail: block at the left pad, segments left-aligned, "·" at its end.
+                    let near = StringFormat::new(gdip::ALIGN_NEAR, gdip::ALIGN_CENTER);
+                    let mut xl = self.s(12.0) as f32;
+                    for i in (0..self.segs.len()).rev() {
+                        g.draw_string(&self.segs[i].0, &f_main, &dim, rect(xl, wf - xl), &near);
+                        if i > 0 {
+                            let sx = xl + self.seg_slots[i] as f32 + self.s(6.0) as f32;
+                            g.draw_string("·", &f_main, &dim, rect(sx, self.s(6.0) as f32), &near);
+                        }
+                        xl += (self.seg_slots[i] + self.seg_gap()) as f32;
+                    }
+                    let ex = self.s(12.0) as f32 + w_net as f32 + self.s(8.0) as f32;
+                    g.draw_string("·", &f_main, &dim, rect(ex, self.s(6.0) as f32), &near);
+                }
             } else {
                 g.fill_ellipse(&accent, self.s(12.0) as f32, cy - dot_d / 2.0, dot_d, dot_d);
                 let sf = StringFormat::new(gdip::ALIGN_NEAR, gdip::ALIGN_CENTER);
@@ -396,6 +487,21 @@ impl Widget {
                 g.draw_string("·", &f_main, &dim, rect(x, self.s(6.0) as f32), &sf);
                 x += (self.s(6.0) + self.s(8.0)) as f32;
                 g.draw_string(&self.count, &f_count, &good, rect(x, wf), &sf);
+                if !self.segs.is_empty() {
+                    // "·" at the block's static start; segments right-aligned in slots (units anchored).
+                    let dot_x = wf - (self.s(12.0) + self.s(8.0) + self.s(6.0)) as f32 - w_net as f32;
+                    g.draw_string("·", &f_main, &dim, rect(dot_x, self.s(6.0) as f32), &sf);
+                    let far_sf = StringFormat::new(gdip::ALIGN_FAR, gdip::ALIGN_CENTER);
+                    let mut xr = wf - self.s(12.0) as f32;
+                    for i in (0..self.segs.len()).rev() {
+                        g.draw_string(&self.segs[i].0, &f_main, &dim, rect(0.0, xr), &far_sf);
+                        if i > 0 {
+                            let sx = xr - self.seg_slots[i] as f32 - self.s(12.0) as f32;
+                            g.draw_string("·", &f_main, &dim, rect(sx, self.s(6.0) as f32), &sf);
+                        }
+                        xr -= (self.seg_slots[i] + self.seg_gap()) as f32;
+                    }
+                }
             }
         }
         self.buffer = Some(bmp);

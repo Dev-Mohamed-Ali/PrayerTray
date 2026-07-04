@@ -1,11 +1,11 @@
 //! Themed settings dialog, port of UI/SettingsForm.cs: side-nav sections, live preview,
 //! Save persists / Cancel reverts to the opening snapshot / language change closes with Retry.
-//! Net-meter controls are deferred to v2 (their config fields still round-trip).
 
 use crate::calc::praytimes::METHODS;
 use crate::config::AppConfig;
 use crate::i18n;
 use crate::native::displays::{self, Monitor};
+use crate::native::net;
 use crate::services::{audio, location, location::DetectedLocation};
 use crate::ui::controls::{self, ButtonKind};
 use crate::ui::theme;
@@ -55,7 +55,7 @@ const SIZE_STEPS: [i32; 6] = [80, 90, 100, 110, 125, 150];
 const LANG_IDS: [&str; 7] = ["auto", "en", "ar", "fr", "tr", "ur", "id"];
 const LANG_NAMES: [&str; 6] = ["English", "العربية", "Français", "Türkçe", "اردو", "Bahasa Indonesia"];
 const ADJ_PRAYERS: [&str; 5] = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
-const PAGES: usize = 5;
+const PAGES: usize = 6;
 
 const WM_DETECT_RESULT: u32 = WM_APP + 40;
 const WM_PARSE_RESULT: u32 = WM_APP + 41;
@@ -87,6 +87,14 @@ const ID_OFFSET: i32 = 245;
 const ID_MONITOR: i32 = 246;
 const ID_H24: i32 = 247;
 const ID_HIDEFS: i32 = 248;
+const ID_NETSPEED: i32 = 280;
+const ID_PING: i32 = 281;
+const ID_PINGHOST: i32 = 282;
+const ID_PINGTCP: i32 = 283;
+const ID_NETIFACE: i32 = 284;
+const ID_COMPACT: i32 = 285;
+const ID_TRACKUSAGE: i32 = 286;
+const ID_SHOWUSAGE: i32 = 287;
 const ID_SHOWHIJRI: i32 = 250;
 const ID_HIJRIADJ: i32 = 251;
 const ID_SHOWEVENTS: i32 = 252;
@@ -150,6 +158,7 @@ struct Dialog {
     fonts: Vec<String>,
     rem_ids: Vec<&'static str>,
     azan_ids: Vec<String>,
+    iface_ids: Vec<String>, // combo index -> adapter guid ("" = all); parallels the NIC combo
 }
 
 /// Modal settings dialog on the current thread (nested message loop).
@@ -175,7 +184,7 @@ pub fn run(host: &mut dyn SettingsHost, snapshot: &AppConfig, prefill: Option<&D
         font_title: HFONT::default(),
         pages: (0..PAGES).map(|_| Vec::new()).collect(),
         dim: Vec::new(),
-        titles: ["card.location", "card.calculation", "card.appearance", "card.religious", "card.notifications"]
+        titles: ["card.location", "card.calculation", "card.appearance", "card.network", "card.religious", "card.notifications"]
             .iter()
             .map(|k| i18n::t(k).to_string())
             .collect(),
@@ -187,6 +196,7 @@ pub fn run(host: &mut dyn SettingsHost, snapshot: &AppConfig, prefill: Option<&D
         fonts: controls::font_families(),
         rem_ids,
         azan_ids,
+        iface_ids: Vec::new(),
     });
 
     let rtl = if i18n::is_rtl() { WS_EX_LAYOUTRTL } else { WINDOW_EX_STYLE::default() };
@@ -458,59 +468,85 @@ impl Dialog {
         y += ROW_H;
         self.check_at(2, ID_HIDEFS, i18n::t("chk.hideFs"), LBL_X, y, 380);
 
+        // --- Network ---
+        let mut y = Y0;
+        self.check_at(3, ID_NETSPEED, i18n::t("chk.netSpeed"), LBL_X, y, 380);
+        y += ROW_H;
+        self.check_at(3, ID_PING, i18n::t("chk.ping"), LBL_X, y, 380);
+        y += ROW_H;
+        self.lbl(3, i18n::t("label.pingHost"), LBL_X, y, LABEL_W, false);
+        self.edit_at(3, ID_PINGHOST, CTRL_X, y, 200);
+        y += ROW_H;
+        self.check_at(3, ID_PINGTCP, i18n::t("chk.pingTcp"), LBL_X, y, 380);
+        y += ROW_H;
+        self.lbl(3, i18n::t("label.netInterface"), LBL_X, y, LABEL_W, false);
+        let iface = self.combo_at(3, ID_NETIFACE, CTRL_X, y, 268);
+        self.iface_ids.push(String::new());
+        controls::combo_add(iface, i18n::t("iface.all"));
+        for (name, guid) in net::adapters() {
+            self.iface_ids.push(guid);
+            controls::combo_add(iface, &name);
+        }
+        y += ROW_H;
+        self.check_at(3, ID_COMPACT, i18n::t("chk.compactMeters"), LBL_X, y, 380);
+        y += ROW_H;
+        self.check_at(3, ID_TRACKUSAGE, i18n::t("chk.trackUsage"), LBL_X, y, 380);
+        y += ROW_H;
+        self.check_at(3, ID_SHOWUSAGE, i18n::t("chk.showUsage"), LBL_X, y, 380);
+
         // --- Religious ---
         let mut y = Y0;
-        self.check_at(3, ID_SHOWHIJRI, i18n::t("chk.showHijri"), LBL_X, y, 380);
+        self.check_at(4, ID_SHOWHIJRI, i18n::t("chk.showHijri"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl(3, i18n::t("label.hijriAdjust"), LBL_X, y, LABEL_W, false);
-        self.edit_at(3, ID_HIJRIADJ, CTRL_X, y, 60);
+        self.lbl(4, i18n::t("label.hijriAdjust"), LBL_X, y, LABEL_W, false);
+        self.edit_at(4, ID_HIJRIADJ, CTRL_X, y, 60);
         y += ROW_H;
-        self.check_at(3, ID_SHOWEVENTS, i18n::t("chk.showEvents"), LBL_X, y, 380);
+        self.check_at(4, ID_SHOWEVENTS, i18n::t("chk.showEvents"), LBL_X, y, 380);
         y += ROW_H;
-        self.check_at(3, ID_SUNNAH, i18n::t("chk.sunnahFast"), LBL_X, y, 380);
+        self.check_at(4, ID_SUNNAH, i18n::t("chk.sunnahFast"), LBL_X, y, 380);
         y += ROW_H;
-        self.check_at(3, ID_FRIDAY, i18n::t("chk.fridayReminder"), LBL_X, y, 380);
+        self.check_at(4, ID_FRIDAY, i18n::t("chk.fridayReminder"), LBL_X, y, 380);
 
         // --- Notifications ---
         let mut y = Y0;
-        self.check_at(4, ID_RICH, i18n::t("chk.richToasts"), LBL_X, y, 240);
-        self.btn_at(Some(4), ID_TESTTOAST, i18n::t("btn.test"), LBL_X + 248, y, 60, CTRL_H);
+        self.check_at(5, ID_RICH, i18n::t("chk.richToasts"), LBL_X, y, 240);
+        self.btn_at(Some(5), ID_TESTTOAST, i18n::t("btn.test"), LBL_X + 248, y, 60, CTRL_H);
         y += ROW_H;
-        self.check_at(4, ID_REMENABLE, i18n::t("chk.remind"), LBL_X, y, 380);
+        self.check_at(5, ID_REMENABLE, i18n::t("chk.remind"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl(4, i18n::t("label.minutesBefore"), LBL_X, y, LABEL_W, false);
-        self.edit_at(4, ID_REMMINS, CTRL_X, y, 60);
+        self.lbl(5, i18n::t("label.minutesBefore"), LBL_X, y, LABEL_W, false);
+        self.edit_at(5, ID_REMMINS, CTRL_X, y, 60);
         y += ROW_H;
-        self.check_at(4, ID_REMSOUND, i18n::t("chk.playSound"), LBL_X, y, 380);
+        self.check_at(5, ID_REMSOUND, i18n::t("chk.playSound"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl(4, i18n::t("label.sound"), LBL_X, y, LABEL_W, false);
-        let rs = self.combo_at(4, ID_REMSOUNDCB, CTRL_X, y, 200);
+        self.lbl(5, i18n::t("label.sound"), LBL_X, y, LABEL_W, false);
+        let rs = self.combo_at(5, ID_REMSOUNDCB, CTRL_X, y, 200);
         for (id, _) in audio::REMINDER_SOUNDS {
             controls::combo_add(rs, i18n::t(&format!("sound.{id}")));
         }
         controls::combo_add(rs, i18n::t("combo.customFile"));
         y += ROW_H;
-        self.lbl(4, i18n::t("label.customFile"), LBL_X, y, LABEL_W, false);
-        let rf = self.edit_at(4, ID_REMFILE, CTRL_X, y, 160);
+        self.lbl(5, i18n::t("label.customFile"), LBL_X, y, LABEL_W, false);
+        let rf = self.edit_at(5, ID_REMFILE, CTRL_X, y, 160);
         controls::cue_banner(rf, i18n::t("ph.customFile"));
-        self.btn_at(Some(4), ID_REMBROWSE, "…", CTRL_X + 164, y, 28, CTRL_H);
-        self.btn_at(Some(4), ID_REMTEST, i18n::t("btn.test"), CTRL_X + 196, y, 50, CTRL_H);
+        self.btn_at(Some(5), ID_REMBROWSE, "…", CTRL_X + 164, y, 28, CTRL_H);
+        self.btn_at(Some(5), ID_REMTEST, i18n::t("btn.test"), CTRL_X + 196, y, 50, CTRL_H);
         y += ROW_H;
-        self.lbl(4, i18n::t("label.azan"), LBL_X, y, LABEL_W, false);
-        let az = self.combo_at(4, ID_AZAN, CTRL_X, y, 200);
+        self.lbl(5, i18n::t("label.azan"), LBL_X, y, LABEL_W, false);
+        let az = self.combo_at(5, ID_AZAN, CTRL_X, y, 200);
         controls::combo_add(az, i18n::t("azan.off"));
         for (id, _) in audio::BUILTIN_ADHANS {
             controls::combo_add(az, i18n::t(&format!("adhan.{id}")));
         }
         controls::combo_add(az, i18n::t("combo.customFile"));
         y += ROW_H;
-        self.lbl(4, i18n::t("label.azanFile"), LBL_X, y, LABEL_W, false);
-        let af = self.edit_at(4, ID_AZANFILE, CTRL_X, y, 160);
+        self.lbl(5, i18n::t("label.azanFile"), LBL_X, y, LABEL_W, false);
+        let af = self.edit_at(5, ID_AZANFILE, CTRL_X, y, 160);
         controls::cue_banner(af, ".mp3 / .wav");
-        self.btn_at(Some(4), ID_AZANBROWSE, "…", CTRL_X + 164, y, 28, CTRL_H);
+        self.btn_at(Some(5), ID_AZANBROWSE, "…", CTRL_X + 164, y, 28, CTRL_H);
         y += ROW_H;
-        self.btn_at(Some(4), ID_AZANTEST, i18n::t("btn.test"), CTRL_X, y, 60, CTRL_H);
-        self.btn_at(Some(4), ID_AZANSTOP, i18n::t("btn.stop"), CTRL_X + 64, y, 60, CTRL_H);
+        self.btn_at(Some(5), ID_AZANTEST, i18n::t("btn.test"), CTRL_X, y, 60, CTRL_H);
+        self.btn_at(Some(5), ID_AZANSTOP, i18n::t("btn.stop"), CTRL_X + 64, y, 60, CTRL_H);
 
         // --- bottom buttons ---
         let save_x = CLIENT_W - M - 90;
@@ -566,6 +602,27 @@ impl Dialog {
         controls::combo_set(self.item(ID_MONITOR), mi as i32);
         controls::set_checked(self.item(ID_H24), cfg.use24_hour);
         controls::set_checked(self.item(ID_HIDEFS), cfg.hide_on_fullscreen);
+        controls::set_checked(self.item(ID_NETSPEED), cfg.show_net_speed);
+        controls::set_checked(self.item(ID_PING), cfg.show_ping);
+        controls::set_text(self.item(ID_PINGHOST), &cfg.ping_host);
+        controls::set_checked(self.item(ID_PINGTCP), cfg.ping_tcp);
+        let ni = match &cfg.net_interface_id {
+            None => 0,
+            Some(id) => {
+                if let Some(p) = self.iface_ids.iter().position(|g| g.eq_ignore_ascii_case(id)) {
+                    p as i32
+                } else {
+                    // Saved adapter no longer present: keep the selection, mark it disconnected.
+                    self.iface_ids.push(id.clone());
+                    controls::combo_add(self.item(ID_NETIFACE), i18n::t("iface.missing"));
+                    (self.iface_ids.len() - 1) as i32
+                }
+            }
+        };
+        controls::combo_set(self.item(ID_NETIFACE), ni);
+        controls::set_checked(self.item(ID_COMPACT), cfg.compact_meters);
+        controls::set_checked(self.item(ID_TRACKUSAGE), cfg.track_data_usage);
+        controls::set_checked(self.item(ID_SHOWUSAGE), cfg.show_data_usage);
         controls::set_checked(self.item(ID_SHOWHIJRI), cfg.show_hijri_date);
         self.set_num(ID_HIJRIADJ, cfg.hijri_adjust.clamp(-2, 2));
         controls::set_checked(self.item(ID_SHOWEVENTS), cfg.show_islamic_events);
@@ -650,6 +707,16 @@ impl Dialog {
         }
         c.use24_hour = controls::checked(self.item(ID_H24));
         c.hide_on_fullscreen = controls::checked(self.item(ID_HIDEFS));
+        c.show_net_speed = controls::checked(self.item(ID_NETSPEED));
+        c.show_ping = controls::checked(self.item(ID_PING));
+        let ping_host = controls::get_text(self.item(ID_PINGHOST));
+        c.ping_host = if ping_host.trim().is_empty() { "1.1.1.1".into() } else { ping_host.trim().to_string() };
+        c.ping_tcp = controls::checked(self.item(ID_PINGTCP));
+        let isel = controls::combo_sel(self.item(ID_NETIFACE)).max(0) as usize;
+        c.net_interface_id = self.iface_ids.get(isel).filter(|g| !g.is_empty()).cloned();
+        c.compact_meters = controls::checked(self.item(ID_COMPACT));
+        c.track_data_usage = controls::checked(self.item(ID_TRACKUSAGE));
+        c.show_data_usage = controls::checked(self.item(ID_SHOWUSAGE));
         c.show_hijri_date = controls::checked(self.item(ID_SHOWHIJRI));
         c.hijri_adjust = self.get_num(ID_HIJRIADJ, -2, 2).unwrap_or(0);
         c.show_islamic_events = controls::checked(self.item(ID_SHOWEVENTS));
@@ -694,6 +761,16 @@ impl Dialog {
         controls::enable(self.item(ID_AZANBROWSE), amode == "Custom");
         controls::enable(self.item(ID_AZANTEST), amode != "None");
         controls::enable(self.item(ID_HIJRIADJ), controls::checked(self.item(ID_SHOWHIJRI)));
+
+        let netspeed = controls::checked(self.item(ID_NETSPEED));
+        let ping = controls::checked(self.item(ID_PING));
+        let track = controls::checked(self.item(ID_TRACKUSAGE));
+        let show_usage = controls::checked(self.item(ID_SHOWUSAGE));
+        controls::enable(self.item(ID_PINGHOST), ping);
+        controls::enable(self.item(ID_PINGTCP), ping);
+        controls::enable(self.item(ID_NETIFACE), netspeed || ping || track);
+        controls::enable(self.item(ID_SHOWUSAGE), track);
+        controls::enable(self.item(ID_COMPACT), netspeed || ping || (track && show_usage));
     }
 
     fn select_section(&mut self, idx: usize) {
@@ -941,6 +1018,34 @@ impl Dialog {
                     self.live(|c| c.show_islamic_events = v);
                 }
                 ID_REMENABLE | ID_REMSOUND => self.sync_enabled(),
+                ID_NETSPEED => {
+                    let v = controls::checked(self.item(ID_NETSPEED));
+                    self.live(|c| c.show_net_speed = v);
+                    self.sync_enabled();
+                }
+                ID_PING => {
+                    let v = controls::checked(self.item(ID_PING));
+                    self.live(|c| c.show_ping = v);
+                    self.sync_enabled();
+                }
+                ID_PINGTCP => {
+                    let v = controls::checked(self.item(ID_PINGTCP));
+                    self.live(|c| c.ping_tcp = v);
+                }
+                ID_COMPACT => {
+                    let v = controls::checked(self.item(ID_COMPACT));
+                    self.live(|c| c.compact_meters = v);
+                }
+                ID_TRACKUSAGE => {
+                    let v = controls::checked(self.item(ID_TRACKUSAGE));
+                    self.live(|c| c.track_data_usage = v);
+                    self.sync_enabled();
+                }
+                ID_SHOWUSAGE => {
+                    let v = controls::checked(self.item(ID_SHOWUSAGE));
+                    self.live(|c| c.show_data_usage = v);
+                    self.sync_enabled();
+                }
                 _ => {}
             }
         } else if code == CBN_SELCHANGE {
@@ -979,6 +1084,11 @@ impl Dialog {
                     self.live(|c| c.widget_anchor = if left { "Left" } else { "Right" }.into());
                 }
                 ID_REMSOUNDCB | ID_AZAN => self.sync_enabled(),
+                ID_NETIFACE => {
+                    let sel = controls::combo_sel(self.item(ID_NETIFACE)).max(0) as usize;
+                    let id = self.iface_ids.get(sel).filter(|g| !g.is_empty()).cloned();
+                    self.live(|c| c.net_interface_id = id);
+                }
                 _ => {} // monitor change applies on Save only
             }
         } else if code == EN_KILLFOCUS {
@@ -997,6 +1107,11 @@ impl Dialog {
                     if let Ok(v) = controls::get_text(self.item(ID_OFFSET)).trim().parse::<i32>() {
                         self.live(|c| c.widget_offset = v.clamp(0, 2000));
                     }
+                }
+                ID_PINGHOST => {
+                    let h = controls::get_text(self.item(ID_PINGHOST));
+                    let host = if h.trim().is_empty() { "1.1.1.1".to_string() } else { h.trim().to_string() };
+                    self.live(|c| c.ping_host = host);
                 }
                 ID_HIJRIADJ => {
                     if let Some(v) = self.get_num(ID_HIJRIADJ, -2, 2) {
