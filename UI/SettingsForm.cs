@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
+using System.IO;
+using System.Net.NetworkInformation;
+using System.Text.Json;
 using System.Windows.Forms;
 using PrayerTray.Calc;
 using PrayerTray.Config;
@@ -39,6 +42,11 @@ public class SettingsForm : Form
     readonly NumericUpDown _adjAsr = new() { Width = 90, Minimum = -60, Maximum = 60 };
     readonly NumericUpDown _adjMaghrib = new() { Width = 90, Minimum = -60, Maximum = 60 };
     readonly NumericUpDown _adjIsha = new() { Width = 90, Minimum = -60, Maximum = 60 };
+    readonly NumericUpDown _iqFajr = new() { Width = 90, Minimum = 0, Maximum = 60 };
+    readonly NumericUpDown _iqDhuhr = new() { Width = 90, Minimum = 0, Maximum = 60 };
+    readonly NumericUpDown _iqAsr = new() { Width = 90, Minimum = 0, Maximum = 60 };
+    readonly NumericUpDown _iqMaghrib = new() { Width = 90, Minimum = 0, Maximum = 60 };
+    readonly NumericUpDown _iqIsha = new() { Width = 90, Minimum = 0, Maximum = 60 };
     readonly ComboBox _position = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
     readonly TextBox _offset = new() { Width = 200 };
     readonly ComboBox _language = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -56,7 +64,12 @@ public class SettingsForm : Form
     readonly CheckBox _netSpeed = new() { Text = Strings.T("chk.netSpeed"), AutoSize = true };
     readonly CheckBox _ping = new() { Text = Strings.T("chk.ping"), AutoSize = true };
     readonly TextBox _pingHost = new() { Width = 200 };
+    readonly CheckBox _pingTcp = new() { Text = Strings.T("chk.pingTcp"), AutoSize = true };
+    readonly ComboBox _netIface = new() { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+    readonly List<string> _ifaceIds = new();
     readonly CheckBox _compactMeters = new() { Text = Strings.T("chk.compactMeters"), AutoSize = true };
+    readonly CheckBox _trackUsage = new() { Text = Strings.T("chk.trackUsage"), AutoSize = true };
+    readonly CheckBox _showUsage = new() { Text = Strings.T("chk.showUsage"), AutoSize = true };
     readonly NumericUpDown _hijriAdjust = new() { Width = 90, Minimum = -2, Maximum = 2 };
 
     readonly CheckBox _richToasts = new() { Text = Strings.T("chk.richToasts"), AutoSize = true };
@@ -94,6 +107,7 @@ public class SettingsForm : Form
         _live = livePreview;
         _testNotify = testNotify;
 
+        SuspendLayout(); // ~60 controls; without this every Add cascades a full AutoSize relayout
         Text = Strings.T("settings.title");
         if (Strings.IsRtl) { RightToLeft = RightToLeft.Yes; RightToLeftLayout = true; }
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -128,6 +142,12 @@ public class SettingsForm : Form
         AddRow(calcBody, Strings.Prayer("asr"), _adjAsr);
         AddRow(calcBody, Strings.Prayer("maghrib"), _adjMaghrib);
         AddRow(calcBody, Strings.Prayer("isha"), _adjIsha);
+        AddSpan(calcBody, new Label { Text = Strings.T("label.iqamahTune"), AutoSize = true, ForeColor = Theme.TextDim });
+        AddRow(calcBody, Strings.Prayer("fajr"), _iqFajr);
+        AddRow(calcBody, Strings.Prayer("dhuhr"), _iqDhuhr);
+        AddRow(calcBody, Strings.Prayer("asr"), _iqAsr);
+        AddRow(calcBody, Strings.Prayer("maghrib"), _iqMaghrib);
+        AddRow(calcBody, Strings.Prayer("isha"), _iqIsha);
 
         // --- Appearance card ---
         var appBody = Body();
@@ -140,10 +160,17 @@ public class SettingsForm : Form
         AddRow(appBody, Strings.T("label.monitor"), _monitor);
         AddSpan(appBody, _h24);
         AddSpan(appBody, _hideFs);
-        AddSpan(appBody, _netSpeed);
-        AddSpan(appBody, _ping);
-        AddRow(appBody, Strings.T("label.pingHost"), _pingHost);
-        AddSpan(appBody, _compactMeters);
+
+        // --- Network card ---
+        var netBody = Body();
+        AddSpan(netBody, _netSpeed);
+        AddSpan(netBody, _ping);
+        AddRow(netBody, Strings.T("label.pingHost"), _pingHost);
+        AddSpan(netBody, _pingTcp);
+        AddRow(netBody, Strings.T("label.netInterface"), _netIface);
+        AddSpan(netBody, _compactMeters);
+        AddSpan(netBody, _trackUsage);
+        AddSpan(netBody, _showUsage);
 
         // --- Religious card ---
         var relBody = Body();
@@ -171,6 +198,7 @@ public class SettingsForm : Form
             (Strings.T("card.location"), locBody),
             (Strings.T("card.calculation"), calcBody),
             (Strings.T("card.appearance"), appBody),
+            (Strings.T("card.network"), netBody),
             (Strings.T("card.religious"), relBody),
             (Strings.T("card.notifications"), notifBody),
         };
@@ -238,17 +266,33 @@ public class SettingsForm : Form
         _azanIds.Add("None"); _azan.Items.Add(Strings.T("azan.off"));
         foreach (var (id, _) in AudioPlayer.BuiltinAdhans) { _azanIds.Add(id); _azan.Items.Add(Strings.T("adhan." + id)); }
         _azanIds.Add("Custom"); _azan.Items.Add(Strings.T("combo.customFile"));
+        _ifaceIds.Add(""); _netIface.Items.Add(Strings.T("iface.all"));
+        try
+        {
+            foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                _ifaceIds.Add(ni.Id); _netIface.Items.Add(ni.Name);
+            }
+        }
+        catch { /* enumeration failed -> "All" only */ }
 
         LoadValues();
         if (prefill != null) ApplyDetected(prefill);
 
         var ok = new Button { Text = Strings.T("btn.save"), DialogResult = DialogResult.OK, Width = 90, Height = 30, Margin = new Padding(6, 0, 0, 0) };
         var cancel = new Button { Text = Strings.T("btn.cancel"), DialogResult = DialogResult.Cancel, Width = 90, Height = 30 };
+        var export = new Button { Text = Strings.T("btn.exportCfg"), Width = 90, Height = 30, Margin = new Padding(24, 0, 0, 0) };
+        var import = new Button { Text = Strings.T("btn.importCfg"), Width = 90, Height = 30 };
         ok.Click += OnSave;
+        export.Click += OnExport;
+        import.Click += OnImport;
         // RightToLeftLayout already mirrors the panel, so flip the flow back to keep Save on the inner side.
         var buttons = new FlowLayoutPanel { FlowDirection = Strings.IsRtl ? FlowDirection.LeftToRight : FlowDirection.RightToLeft, Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(8) };
         buttons.Controls.Add(ok);
         buttons.Controls.Add(cancel);
+        buttons.Controls.Add(export);
+        buttons.Controls.Add(import);
 
         var root = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Fill };
         root.Controls.Add(grid, 0, 0);
@@ -258,9 +302,12 @@ public class SettingsForm : Form
 
         Stylize();
         StyleButton(ok, accent: true);
+        StyleButton(export);
+        StyleButton(import);
         WireEvents();
         SyncEnabled();
         SelectSection(0);
+        ResumeLayout(true);
         _ready = true;
 
         FormClosing += (_, _) =>
@@ -274,6 +321,13 @@ public class SettingsForm : Form
                 _live?.Invoke();
             }
         };
+    }
+
+    // WS_EX_COMPOSITED: the form and all children paint into one buffer -> no visible
+    // card-by-card repaint when switching sections or toggling enabled states.
+    protected override CreateParams CreateParams
+    {
+        get { var cp = base.CreateParams; cp.ExStyle |= 0x02000000; return cp; }
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -295,6 +349,11 @@ public class SettingsForm : Form
         _adjAsr.Value = Math.Clamp(_cfg.AsrAdjust, -60, 60);
         _adjMaghrib.Value = Math.Clamp(_cfg.MaghribAdjust, -60, 60);
         _adjIsha.Value = Math.Clamp(_cfg.IshaAdjust, -60, 60);
+        _iqFajr.Value = Math.Clamp(_cfg.FajrIqamah, 0, 60);
+        _iqDhuhr.Value = Math.Clamp(_cfg.DhuhrIqamah, 0, 60);
+        _iqAsr.Value = Math.Clamp(_cfg.AsrIqamah, 0, 60);
+        _iqMaghrib.Value = Math.Clamp(_cfg.MaghribIqamah, 0, 60);
+        _iqIsha.Value = Math.Clamp(_cfg.IshaIqamah, 0, 60);
         _position.SelectedIndex = string.Equals(_cfg.WidgetAnchor, "Left", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
         _offset.Text = _cfg.WidgetOffset.ToString(CultureInfo.InvariantCulture);
         int li = _langIds.IndexOf(_cfg.Language); _language.SelectedIndex = li < 0 ? 0 : li;
@@ -312,7 +371,20 @@ public class SettingsForm : Form
         _netSpeed.Checked = _cfg.ShowNetSpeed;
         _ping.Checked = _cfg.ShowPing;
         _pingHost.Text = _cfg.PingHost;
+        _pingTcp.Checked = _cfg.PingTcp;
+        int ii = _ifaceIds.IndexOf(_cfg.NetInterfaceId ?? "");
+        if (ii < 0)
+        {
+            // Adapter currently absent (unplugged/disabled): keep the choice instead of
+            // silently rewriting it to "All" on the next unrelated Save.
+            _ifaceIds.Add(_cfg.NetInterfaceId!);
+            _netIface.Items.Add(Strings.T("iface.missing"));
+            ii = _ifaceIds.Count - 1;
+        }
+        _netIface.SelectedIndex = ii;
         _compactMeters.Checked = _cfg.CompactMeters;
+        _trackUsage.Checked = _cfg.TrackDataUsage;
+        _showUsage.Checked = _cfg.ShowDataUsage;
         _showHijri.Checked = _cfg.ShowHijriDate;
         _showEvents.Checked = _cfg.ShowIslamicEvents;
         _sunnahFast.Checked = _cfg.SunnahFastReminder;
@@ -344,7 +416,15 @@ public class SettingsForm : Form
         _netSpeed.CheckedChanged += (_, _) => { Live(() => _cfg.ShowNetSpeed = _netSpeed.Checked); SyncEnabled(); };
         _ping.CheckedChanged += (_, _) => { Live(() => _cfg.ShowPing = _ping.Checked); SyncEnabled(); };
         _pingHost.TextChanged += (_, _) => Live(() => _cfg.PingHost = _pingHost.Text.Trim());
+        _pingTcp.CheckedChanged += (_, _) => Live(() => _cfg.PingTcp = _pingTcp.Checked);
+        _netIface.SelectedIndexChanged += (_, _) => Live(() =>
+        {
+            string id = _ifaceIds[Math.Max(0, _netIface.SelectedIndex)];
+            _cfg.NetInterfaceId = id.Length == 0 ? null : id;
+        });
         _compactMeters.CheckedChanged += (_, _) => Live(() => _cfg.CompactMeters = _compactMeters.Checked);
+        _trackUsage.CheckedChanged += (_, _) => { Live(() => _cfg.TrackDataUsage = _trackUsage.Checked); SyncEnabled(); };
+        _showUsage.CheckedChanged += (_, _) => { Live(() => _cfg.ShowDataUsage = _showUsage.Checked); SyncEnabled(); };
         _showHijri.CheckedChanged += (_, _) => { Live(() => _cfg.ShowHijriDate = _showHijri.Checked); SyncEnabled(); };
         _showEvents.CheckedChanged += (_, _) => Live(() => _cfg.ShowIslamicEvents = _showEvents.Checked);
         _hijriAdjust.ValueChanged += (_, _) => Live(() => _cfg.HijriAdjust = (int)_hijriAdjust.Value);
@@ -356,6 +436,11 @@ public class SettingsForm : Form
         _adjAsr.ValueChanged += (_, _) => Live(() => _cfg.AsrAdjust = (int)_adjAsr.Value);
         _adjMaghrib.ValueChanged += (_, _) => Live(() => _cfg.MaghribAdjust = (int)_adjMaghrib.Value);
         _adjIsha.ValueChanged += (_, _) => Live(() => _cfg.IshaAdjust = (int)_adjIsha.Value);
+        _iqFajr.ValueChanged += (_, _) => Live(() => _cfg.FajrIqamah = (int)_iqFajr.Value);
+        _iqDhuhr.ValueChanged += (_, _) => Live(() => _cfg.DhuhrIqamah = (int)_iqDhuhr.Value);
+        _iqAsr.ValueChanged += (_, _) => Live(() => _cfg.AsrIqamah = (int)_iqAsr.Value);
+        _iqMaghrib.ValueChanged += (_, _) => Live(() => _cfg.MaghribIqamah = (int)_iqMaghrib.Value);
+        _iqIsha.ValueChanged += (_, _) => Live(() => _cfg.IshaIqamah = (int)_iqIsha.Value);
 
         _lat.Validated += (_, _) => Live(() => { if (TryLat(out var v)) _cfg.Latitude = v; });
         _lng.Validated += (_, _) => Live(() => { if (TryLng(out var v)) _cfg.Longitude = v; });
@@ -418,7 +503,10 @@ public class SettingsForm : Form
         _azanTest.Enabled = _azanIds[Math.Max(0, _azan.SelectedIndex)] != "None";
         _hijriAdjust.Enabled = _showHijri.Checked;
         _pingHost.Enabled = _ping.Checked;
-        _compactMeters.Enabled = _netSpeed.Checked || _ping.Checked;
+        _pingTcp.Enabled = _ping.Checked;
+        _netIface.Enabled = _netSpeed.Checked || _ping.Checked || _trackUsage.Checked;
+        _showUsage.Enabled = _trackUsage.Checked;
+        _compactMeters.Enabled = _netSpeed.Checked || _ping.Checked || (_trackUsage.Checked && _showUsage.Checked);
     }
 
     string CurrentReminderPath()
@@ -505,51 +593,113 @@ public class SettingsForm : Form
 
     void OnSave(object? sender, EventArgs e)
     {
-        if (!TryLat(out var lat)) { Warn(Strings.T("msg.latRange")); return; }
-        if (!TryLng(out var lng)) { Warn(Strings.T("msg.lngRange")); return; }
+        if (!TryCollect(_cfg)) return;
+        _cfg.Save();
+        _live?.Invoke();
+    }
+
+    // Validate the form and write every control into <paramref name="c"/>; false (after a Warn) if invalid.
+    bool TryCollect(AppConfig c)
+    {
+        if (!TryLat(out var lat)) { Warn(Strings.T("msg.latRange")); return false; }
+        if (!TryLng(out var lng)) { Warn(Strings.T("msg.lngRange")); return false; }
         string azanMode = _azanIds[Math.Max(0, _azan.SelectedIndex)];
         if (azanMode == "Custom" && string.IsNullOrWhiteSpace(_azanFile.Text))
-        { Warn(Strings.T("msg.azanFile")); return; }
+        { Warn(Strings.T("msg.azanFile")); return false; }
 
-        _cfg.City = string.IsNullOrWhiteSpace(_city.Text) ? "Custom" : _city.Text.Trim();
-        _cfg.Latitude = lat; _cfg.Longitude = lng;
-        _cfg.Method = new List<string>(CalcMethod.All.Keys)[_method.SelectedIndex];
-        _cfg.Asr = _asr.SelectedIndex == 1 ? (int)AsrJuristic.Hanafi : (int)AsrJuristic.Standard;
-        _cfg.HighLats = HighLatIds[Math.Max(0, _highLat.SelectedIndex)];
-        _cfg.FajrAdjust = Math.Clamp((int)_adjFajr.Value, -60, 60);
-        _cfg.DhuhrAdjust = Math.Clamp((int)_adjDhuhr.Value, -60, 60);
-        _cfg.AsrAdjust = Math.Clamp((int)_adjAsr.Value, -60, 60);
-        _cfg.MaghribAdjust = Math.Clamp((int)_adjMaghrib.Value, -60, 60);
-        _cfg.IshaAdjust = Math.Clamp((int)_adjIsha.Value, -60, 60);
-        _cfg.WidgetAnchor = _position.SelectedIndex == 1 ? "Left" : "Right";
-        _cfg.Theme = Theme.Names[_theme.SelectedIndex];
-        if (_font.SelectedItem is string fam && !string.IsNullOrWhiteSpace(fam)) _cfg.FontFamily = fam;
-        _cfg.FontScalePct = SizeSteps[Math.Max(0, _fontSize.SelectedIndex)];
+        c.City = string.IsNullOrWhiteSpace(_city.Text) ? "Custom" : _city.Text.Trim();
+        c.Latitude = lat; c.Longitude = lng;
+        c.Method = new List<string>(CalcMethod.All.Keys)[_method.SelectedIndex];
+        c.Asr = _asr.SelectedIndex == 1 ? (int)AsrJuristic.Hanafi : (int)AsrJuristic.Standard;
+        c.HighLats = HighLatIds[Math.Max(0, _highLat.SelectedIndex)];
+        c.FajrAdjust = Math.Clamp((int)_adjFajr.Value, -60, 60);
+        c.DhuhrAdjust = Math.Clamp((int)_adjDhuhr.Value, -60, 60);
+        c.AsrAdjust = Math.Clamp((int)_adjAsr.Value, -60, 60);
+        c.MaghribAdjust = Math.Clamp((int)_adjMaghrib.Value, -60, 60);
+        c.IshaAdjust = Math.Clamp((int)_adjIsha.Value, -60, 60);
+        c.FajrIqamah = Math.Clamp((int)_iqFajr.Value, 0, 60);
+        c.DhuhrIqamah = Math.Clamp((int)_iqDhuhr.Value, 0, 60);
+        c.AsrIqamah = Math.Clamp((int)_iqAsr.Value, 0, 60);
+        c.MaghribIqamah = Math.Clamp((int)_iqMaghrib.Value, 0, 60);
+        c.IshaIqamah = Math.Clamp((int)_iqIsha.Value, 0, 60);
+        c.WidgetAnchor = _position.SelectedIndex == 1 ? "Left" : "Right";
+        c.Theme = Theme.Names[_theme.SelectedIndex];
+        if (_font.SelectedItem is string fam && !string.IsNullOrWhiteSpace(fam)) c.FontFamily = fam;
+        c.FontScalePct = SizeSteps[Math.Max(0, _fontSize.SelectedIndex)];
         var mon = _displays[_monitor.SelectedIndex];
-        _cfg.MonitorDeviceName = mon.Primary ? null : mon.DeviceName;
+        c.MonitorDeviceName = mon.Primary ? null : mon.DeviceName;
         if (int.TryParse(_offset.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var off))
-            _cfg.WidgetOffset = Math.Clamp(off, 0, 2000);
-        _cfg.Use24Hour = _h24.Checked;
-        _cfg.HideOnFullscreen = _hideFs.Checked;
-        _cfg.ShowNetSpeed = _netSpeed.Checked;
-        _cfg.ShowPing = _ping.Checked;
-        _cfg.PingHost = _pingHost.Text.Trim();
-        _cfg.CompactMeters = _compactMeters.Checked;
-        _cfg.ShowHijriDate = _showHijri.Checked;
-        _cfg.ShowIslamicEvents = _showEvents.Checked;
-        _cfg.SunnahFastReminder = _sunnahFast.Checked;
-        _cfg.FridayReminder = _fridayRem.Checked;
-        _cfg.HijriAdjust = Math.Clamp((int)_hijriAdjust.Value, -2, 2);
+            c.WidgetOffset = Math.Clamp(off, 0, 2000);
+        c.Use24Hour = _h24.Checked;
+        c.HideOnFullscreen = _hideFs.Checked;
+        c.ShowNetSpeed = _netSpeed.Checked;
+        c.ShowPing = _ping.Checked;
+        c.PingHost = _pingHost.Text.Trim();
+        c.PingTcp = _pingTcp.Checked;
+        string ifaceId = _ifaceIds[Math.Max(0, _netIface.SelectedIndex)];
+        c.NetInterfaceId = ifaceId.Length == 0 ? null : ifaceId;
+        c.CompactMeters = _compactMeters.Checked;
+        c.TrackDataUsage = _trackUsage.Checked;
+        c.ShowDataUsage = _showUsage.Checked;
+        c.ShowHijriDate = _showHijri.Checked;
+        c.ShowIslamicEvents = _showEvents.Checked;
+        c.SunnahFastReminder = _sunnahFast.Checked;
+        c.FridayReminder = _fridayRem.Checked;
+        c.HijriAdjust = Math.Clamp((int)_hijriAdjust.Value, -2, 2);
 
-        _cfg.RichToasts = _richToasts.Checked;
-        _cfg.ReminderEnabled = _remEnable.Checked;
-        _cfg.ReminderMinutes = Math.Clamp((int)_remMins.Value, 1, 60);
-        _cfg.ReminderSound = _remSound.Checked;
-        _cfg.ReminderSoundId = _remSoundIds[Math.Max(0, _remSoundCombo.SelectedIndex)];
-        _cfg.ReminderSoundPath = string.IsNullOrWhiteSpace(_remFile.Text) ? null : _remFile.Text.Trim();
-        _cfg.AzanMode = azanMode;
-        _cfg.AzanCustomPath = string.IsNullOrWhiteSpace(_azanFile.Text) ? null : _azanFile.Text.Trim();
-        _cfg.Save();
+        c.RichToasts = _richToasts.Checked;
+        c.ReminderEnabled = _remEnable.Checked;
+        c.ReminderMinutes = Math.Clamp((int)_remMins.Value, 1, 60);
+        c.ReminderSound = _remSound.Checked;
+        c.ReminderSoundId = _remSoundIds[Math.Max(0, _remSoundCombo.SelectedIndex)];
+        c.ReminderSoundPath = string.IsNullOrWhiteSpace(_remFile.Text) ? null : _remFile.Text.Trim();
+        c.AzanMode = azanMode;
+        c.AzanCustomPath = string.IsNullOrWhiteSpace(_azanFile.Text) ? null : _azanFile.Text.Trim();
+        return true;
+    }
+
+    void OnExport(object? sender, EventArgs e)
+    {
+        var tmp = _cfg.Clone();
+        if (!TryCollect(tmp)) return;
+        using var d = new SaveFileDialog { Filter = "JSON|*.json", FileName = "PrayerTray-config.json" };
+        if (d.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            File.WriteAllText(d.FileName, JsonSerializer.Serialize(tmp, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { Msg(Strings.T("msg.exportError"), Strings.T("msg.invalidCaption"), MessageBoxIcon.Warning); }
+    }
+
+    void OnImport(object? sender, EventArgs e)
+    {
+        using var d = new OpenFileDialog { Filter = "JSON|*.json|All files|*.*" };
+        if (d.ShowDialog(this) != DialogResult.OK) return;
+        AppConfig? imported = null;
+        try { imported = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(d.FileName)); }
+        catch { /* handled below */ }
+        if (imported is null)
+        {
+            Msg(Strings.T("msg.importError"), Strings.T("msg.invalidCaption"), MessageBoxIcon.Warning);
+            return;
+        }
+
+        string prevLang = _cfg.Language;
+        imported.Sanitize();
+        _cfg.CopyFrom(imported);
+        _ready = false;
+        LoadValues();
+        _ready = true;
+        SyncEnabled();
+        if (_cfg.Language != prevLang)
+        {
+            // Rebuild in the imported language, like a manual language change.
+            Strings.Set(_cfg.Language);
+            _live?.Invoke();
+            RestartRequested = true;
+            DialogResult = DialogResult.Retry;
+            return;
+        }
         _live?.Invoke();
     }
 
@@ -612,12 +762,12 @@ public class SettingsForm : Form
     // --- theming ---
     void Stylize()
     {
-        foreach (var cb in new[] { _method, _asr, _highLat, _position, _language, _theme, _font, _fontSize, _monitor, _remSoundCombo, _azan }) StyleCombo(cb);
+        foreach (var cb in new[] { _method, _asr, _highLat, _position, _language, _theme, _font, _fontSize, _monitor, _netIface, _remSoundCombo, _azan }) StyleCombo(cb);
         foreach (var tb in new[] { _city, _paste, _lat, _lng, _offset, _pingHost, _remFile, _azanFile }) StyleText(tb);
-        foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _ping, _compactMeters, _showHijri, _showEvents, _sunnahFast, _fridayRem, _richToasts, _remEnable, _remSound }) StyleCheck(ck);
+        foreach (var ck in new[] { _h24, _hideFs, _netSpeed, _ping, _pingTcp, _compactMeters, _trackUsage, _showUsage, _showHijri, _showEvents, _sunnahFast, _fridayRem, _richToasts, _remEnable, _remSound }) StyleCheck(ck);
         StyleNumeric(_remMins);
         StyleNumeric(_hijriAdjust);
-        foreach (var n in new[] { _adjFajr, _adjDhuhr, _adjAsr, _adjMaghrib, _adjIsha }) StyleNumeric(n);
+        foreach (var n in new[] { _adjFajr, _adjDhuhr, _adjAsr, _adjMaghrib, _adjIsha, _iqFajr, _iqDhuhr, _iqAsr, _iqMaghrib, _iqIsha }) StyleNumeric(n);
         var btns = new List<Button> { _openMap, _setPaste, _testToast, _remBrowse, _remTest, _azanBrowse, _azanTest, _azanStop };
 #if !MANUAL_ONLY
         btns.Add(_detect);

@@ -20,6 +20,7 @@ public class PrayerPopup : Form
     public event Action<int, int>? Moved;      // pinned popup dragged to a new spot
 
     string _city = "", _date = "", _hijri = "", _event = "", _countdown = "", _nextLabel = "";
+    string _fast = "", _usage = "", _chipOverride = "";
     readonly List<Row> _rows = new();
     Rectangle _widget;
     bool _anchorRight = true;
@@ -31,7 +32,7 @@ public class PrayerPopup : Form
 
     int Pad => Scaled(16);
     int RowH => Scaled(38);
-    int HeaderH => Scaled((_hijri.Length > 0 ? 74 : 60) + (_event.Length > 0 ? 16 : 0));
+    int HeaderH => Scaled((_hijri.Length > 0 ? 74 : 60) + (_event.Length > 0 ? 16 : 0) + (_fast.Length > 0 ? 16 : 0));
     static int Scaled(int v) => (int)Math.Round(v * Theme.FontScale);
 
     public PrayerPopup()
@@ -61,7 +62,7 @@ public class PrayerPopup : Form
 
     public void ShowTimes(string city, DateTime date, Dictionary<string, TimeSpan> times,
         string? nextKey, bool use24, string countdown, Rectangle widgetRect, bool anchorRight,
-        string hijri = "", string events = "")
+        string hijri = "", string events = "", string fast = "", string usage = "", string chipOverride = "")
     {
         _widget = widgetRect;
         _anchorRight = anchorRight;
@@ -70,6 +71,9 @@ public class PrayerPopup : Form
         _date = Strings.FormatPopupDate(date);
         _hijri = hijri;
         _event = events;
+        _fast = fast;
+        _usage = usage;
+        _chipOverride = chipOverride;
         _countdown = countdown;
         _rows.Clear();
         foreach (var key in Order)
@@ -82,7 +86,7 @@ public class PrayerPopup : Form
         }
 
         Width = Scaled(268);
-        Height = HeaderH + _rows.Count * RowH + Pad;
+        Height = HeaderH + _rows.Count * RowH + (_usage.Length > 0 ? Scaled(22) : 0) + Pad;
         Position();
         Invalidate();
         Show();
@@ -161,7 +165,8 @@ public class PrayerPopup : Form
         using var fChip = new Font(Theme.Family, 9f * fs, FontStyle.Bold);
 
         // Measure the countdown chip first so the date row can reserve room for it (avoids overlap).
-        string chip = string.IsNullOrEmpty(_countdown) ? "" : $"{_nextLabel} {Strings.T("popup.in")} {_countdown}";
+        string chip = _chipOverride.Length > 0 ? _chipOverride
+            : string.IsNullOrEmpty(_countdown) ? "" : $"{_nextLabel} {Strings.T("popup.in")} {_countdown}";
         float chipW = chip.Length == 0 ? 0 : g.MeasureString(chip, fChip).Width + Scaled(14);
 
         var sfHdr = new StringFormat { Alignment = rtl ? StringAlignment.Far : StringAlignment.Near };
@@ -181,6 +186,13 @@ public class PrayerPopup : Form
             var evRect = new RectangleF(Pad, Scaled(_hijri.Length > 0 ? 68 : 52), Width - 2 * Pad, Scaled(18));
             using var b = new SolidBrush(Theme.Accent);
             g.DrawString(_event, fDate, b, evRect, sfHdr);
+        }
+        if (_fast.Length > 0)
+        {
+            int fy = 52 + (_hijri.Length > 0 ? 16 : 0) + (_event.Length > 0 ? 16 : 0);
+            var fastRect = new RectangleF(Pad, Scaled(fy), Width - 2 * Pad, Scaled(18));
+            using var b = new SolidBrush(Theme.Accent);
+            g.DrawString(_fast, fDate, b, fastRect, sfHdr);
         }
 
         DrawPin(g, rtl);
@@ -219,6 +231,13 @@ public class PrayerPopup : Form
                 g.DrawString(r.Time, font, b, rect, sfTime);
             }
             y += RowH;
+        }
+
+        if (_usage.Length > 0)
+        {
+            var uRect = new RectangleF(Pad, y + Scaled(4), Width - 2 * Pad, Scaled(18));
+            using var b = new SolidBrush(Theme.TextDim);
+            g.DrawString(_usage, fDate, b, uRect, sfHdr);
         }
     }
 

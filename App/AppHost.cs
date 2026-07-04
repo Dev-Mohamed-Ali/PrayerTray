@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -29,6 +30,7 @@ public class AppHost : ApplicationContext
     readonly System.Windows.Forms.Timer _pos = new() { Interval = 1_000 };
     TaskbarWidget _widget;
     AppConfig _cfg;
+    readonly AppState _state = AppState.Load();
 
     Dictionary<string, TimeSpan> _times = new();
     DateTime _timesDate = DateTime.MinValue;
@@ -43,6 +45,7 @@ public class AppHost : ApplicationContext
         _ui = System.Threading.SynchronizationContext.Current ?? new System.Threading.SynchronizationContext();
         _cfg = AppConfig.Load();
         HealStartupPath();
+        DataUsage.Load();
         ToastService.Init();
         Strings.Init(_cfg.Language);
         ApplyTheme();
@@ -96,6 +99,7 @@ public class AppHost : ApplicationContext
         ApplyWidgetConfig();
         Recompute();
         RenderTick(); // display only — never fire azan/balloon from a settings change
+        UpdateNetSegments(); // timers are paused while Settings is open; rebuild the tail here
         _widget.PreviewReposition();
     }
 
@@ -152,9 +156,14 @@ public class AppHost : ApplicationContext
         _widget.Offset = _cfg.WidgetOffset;
         _widget.HideOnFullscreen = _cfg.HideOnFullscreen;
         Latency.SetHost(_cfg.PingHost);
-        if (!_cfg.ShowNetSpeed && !_cfg.ShowPing)
+        Latency.SetMode(_cfg.PingTcp, _cfg.NetInterfaceId);
+        NetSpeed.SetInterface(_cfg.NetInterfaceId);
+        DataUsage.SetInterface(_cfg.NetInterfaceId);
+        if (!HasPillMeters)
             _widget.SetNet(Array.Empty<(string, string)>()); // PosTick fills it when enabled
     }
+
+    bool HasPillMeters => _cfg.ShowNetSpeed || _cfg.ShowPing || (_cfg.TrackDataUsage && _cfg.ShowDataUsage);
 
     static Icon LoadAppIcon()
     {
@@ -181,28 +190,95 @@ public class AppHost : ApplicationContext
         var updates = new ToolStripMenuItem(Strings.T("menu.checkUpdates"));
         updates.Click += async (_, _) => await CheckUpdates(updates);
         menu.Items.Add(updates);
+        menu.Items.Add(Strings.T("menu.dataUsage"), null, (_, _) => ShowDataUsageDialog());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Strings.T("menu.exit"), null, (_, _) => ExitApp());
         return menu;
     }
 
+    bool _updateBusy; // menu item is recreated on language change, so Enabled alone can't gate re-entry
+
     async Task CheckUpdates(ToolStripMenuItem item)
     {
+        if (_updateBusy) return;
+        _updateBusy = true;
         item.Enabled = false;
         try
         {
             var info = await UpdateChecker.FetchLatestAsync();
             if (info is null) { Notify(Strings.T("app.name"), Strings.T("update.error")); return; }
-            if (UpdateChecker.IsNewer(info))
+            if (!UpdateChecker.IsNewer(info))
             {
-                string v = $"v{info.Latest.ToString(3)}";
-                if (MessageBox.Show(Strings.F("update.availableBody", v), Strings.T("update.availableTitle"),
-                        MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
-                    try { Process.Start(new ProcessStartInfo(info.Url) { UseShellExecute = true }); } catch { }
+                Notify(Strings.T("app.name"), Strings.F("update.none", $"v{UpdateChecker.Current.ToString(3)}"));
+                return;
             }
-            else Notify(Strings.T("app.name"), Strings.F("update.none", $"v{UpdateChecker.Current.ToString(3)}"));
+
+            string v = $"v{info.Latest.ToString(3)}";
+            if (MessageBox.Show(Strings.F("update.availableBody", v), Strings.T("update.availableTitle"),
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes) return;
+
+            if (info.AssetUrl is null || !await DownloadUpdate(info)) OpenReleasePage(info.Url);
         }
-        finally { item.Enabled = true; }
+        finally { _updateBusy = false; item.Enabled = true; }
+    }
+
+    static void OpenReleasePage(string url)
+    {
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+    }
+
+    // Download next to the current exe, then swap on confirmed restart. Any failure -> browser fallback.
+    async Task<bool> DownloadUpdate(UpdateInfo info)
+    {
+        string? exe = Environment.ProcessPath;
+        if (exe is null) return false;
+        string dest = Path.Combine(Path.GetDirectoryName(exe)!, "PrayerTray-new.exe");
+
+        Notify(Strings.T("app.name"), Strings.T("update.downloading"));
+        if (!await UpdateChecker.DownloadAsync(info.AssetUrl!, dest)) return false;
+
+        if (MessageBox.Show(Strings.T("update.restartAsk"), Strings.T("update.availableTitle"),
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes)
+        {
+            try { File.Delete(dest); } catch { } // postponed -> discard; re-downloaded on the next check
+            return true;
+        }
+
+        try
+        {
+            string old = exe + ".old";
+            if (File.Exists(old)) File.Delete(old);
+            File.Move(exe, old);
+            File.Move(dest, exe);
+            try
+            {
+                Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+            }
+            catch
+            {
+                File.Move(exe, dest); // undo the swap so the running process matches the disk
+                File.Move(old, exe);
+                throw;
+            }
+            // Release only after a successful Start: the child needs ~100ms of runtime load
+            // before its mutex check, and a Start failure must leave our guard intact.
+            Program.ReleaseSingleInstance();
+            ExitApp();
+            return true;
+        }
+        catch
+        {
+            try { if (!File.Exists(exe) && File.Exists(exe + ".old")) File.Move(exe + ".old", exe); } catch { }
+            try { if (File.Exists(dest)) File.Delete(dest); } catch { }
+            Notify(Strings.T("app.name"), Strings.T("update.failed"));
+            return false;
+        }
+    }
+
+    void ShowDataUsageDialog()
+    {
+        using var f = new UsageForm();
+        f.ShowDialog();
     }
 
     // Rebuild the tray menu after a language change (menu items are created once, in BuildMenu).
@@ -224,8 +300,27 @@ public class AppHost : ApplicationContext
         EnsureToday();
         var (nextKey, _, countdown) = CurrentOrNext();
         string hijri = _cfg.ShowHijriDate ? Strings.FormatHijri(DateTime.Today, _cfg.HijriAdjust) : "";
+        string chip = countdown.StartsWith("iq|", StringComparison.Ordinal)
+            ? $"{Strings.T("label.iqamah")} {Strings.T("popup.in")} {countdown[3..]}" : "";
+        string usage = "";
+        if (_cfg.TrackDataUsage)
+        {
+            var (rx, tx) = DataUsage.Today();
+            usage = Strings.F("usage.today", DataUsage.Size(rx), DataUsage.Size(tx));
+        }
         _popup.ShowTimes(_cfg.City, DateTime.Today, _times, nextKey, _cfg.Use24Hour, ShownCountdown(countdown),
-            _widget.ScreenRect, _widget.AnchorRight, hijri, TodaysEvent());
+            _widget.ScreenRect, _widget.AnchorRight, hijri, TodaysEvent(), TodaysFast(), usage, chip);
+    }
+
+    // Popup fast line: fast-day itself all day; else the eve notice from Maghrib onward.
+    string TodaysFast()
+    {
+        if (!_cfg.SunnahFastReminder) return "";
+        if (SunnahFastReason(DateTime.Today) is { } today) return Strings.F("fast.today", FastReasonName(today));
+        if (_times.TryGetValue("maghrib", out var m) && DateTime.Now >= DateTime.Today.Add(m)
+            && SunnahFastReason(DateTime.Today.AddDays(1)) is { } eve)
+            return Strings.F("fast.tomorrow", FastReasonName(eve));
+        return "";
     }
 
     // Popup line: today's special day, else a countdown to the next major event (within ~6 weeks).
@@ -280,25 +375,34 @@ public class AppHost : ApplicationContext
     void DataTick() { RenderTick(); CheckNotification(); }
 
     // 1s timer: reposition the pill, and within the final minute re-render so the seconds countdown ticks live.
+    void UpdateNetSegments()
+    {
+        if (!HasPillMeters) return;
+        // Templates must cover common live values or the slot latch resizes the pill mid-session;
+        // CompactMeters trades that guarantee for tighter 2-digit slots.
+        bool compact = _cfg.CompactMeters;
+        var segs = new List<(string text, string tmpl)>(4);
+        if (_cfg.ShowNetSpeed)
+        {
+            var (rxRate, txRate) = NetSpeed.Sample();
+            var (down, up) = NetSpeed.FormatParts(rxRate, txRate);
+            segs.Add((down, compact ? "↓ 8.8 MB/s" : "↓ 88.8 MB/s"));
+            segs.Add((up, compact ? "↑ 8.8 MB/s" : "↑ 88.8 MB/s"));
+        }
+        if (_cfg.ShowPing)
+            segs.Add((Latency.Format(Latency.Sample()), compact ? "88 ms" : "888 ms"));
+        if (_cfg.TrackDataUsage && _cfg.ShowDataUsage)
+        {
+            var (rx, tx) = DataUsage.Today();
+            segs.Add(($"Σ {DataUsage.Size(rx + tx)}", compact ? "Σ 888 MB" : "Σ 8.88 GB"));
+        }
+        _widget.SetNet(segs);
+    }
+
     void PosTick()
     {
-        if (_cfg.ShowNetSpeed || _cfg.ShowPing)
-        {
-            // Templates must cover common live values or the slot latch resizes the pill mid-session;
-            // CompactMeters trades that guarantee for tighter 2-digit slots.
-            bool compact = _cfg.CompactMeters;
-            var segs = new List<(string text, string tmpl)>(3);
-            if (_cfg.ShowNetSpeed)
-            {
-                var (rxRate, txRate) = NetSpeed.Sample();
-                var (down, up) = NetSpeed.FormatParts(rxRate, txRate);
-                segs.Add((down, compact ? "↓ 8.8 MB/s" : "↓ 88.8 MB/s"));
-                segs.Add((up, compact ? "↑ 8.8 MB/s" : "↑ 88.8 MB/s"));
-            }
-            if (_cfg.ShowPing)
-                segs.Add((Latency.Format(Latency.Sample()), compact ? "88 ms" : "888 ms"));
-            _widget.SetNet(segs);
-        }
+        if (_cfg.TrackDataUsage) DataUsage.Tick();
+        UpdateNetSegments();
         _widget.Tick();
         if (_nextAt is DateTime a)
         {
@@ -319,16 +423,22 @@ public class AppHost : ApplicationContext
             ? "" : PrayerPopup.Format(ts, _cfg.Use24Hour);
 
         _widget.SetData(label, timeStr, ShownCountdown(countdown));
+        bool isIqamah = countdown.StartsWith("iq|", StringComparison.Ordinal);
         _tray.Text = Trunc(isNow
             ? $"{Strings.T("tray.now")} {label} {timeStr}"
-            : $"{Strings.T("tray.next")} {label} {timeStr} ({Strings.T("tray.in")} {countdown})");
+            : isIqamah
+                ? $"{label} {timeStr} · {ShownCountdown(countdown)}"
+                : $"{Strings.T("tray.next")} {label} {timeStr} ({Strings.T("tray.in")} {countdown})");
 
         if (_popup.Visible) ShowPopup();
     }
 
-    // Map the internal "now" sentinel to a localized word; pass other countdowns ("12m"/"45s") through.
+    // Map the internal "now"/"iq|…" sentinels to localized text; pass other countdowns ("12m"/"45s") through.
     static string ShownCountdown(string countdown) =>
-        countdown == "now" ? Strings.T("countdown.now") : countdown;
+        countdown == "now" ? Strings.T("countdown.now")
+        : countdown.StartsWith("iq|", StringComparison.Ordinal)
+            ? $"{Strings.T("label.iqamah")} {countdown[3..]}"
+        : countdown;
 
     // Edge-triggered, day-aware: each reminder/azan fires once, within the fire window of its minute (tick = 15s).
     void CheckNotification()
@@ -361,13 +471,15 @@ public class AppHost : ApplicationContext
             catch { /* a balloon/audio hiccup must not kill the tick; logged by the global handler if fatal */ }
         }
 
-        // Eve-before nudge for tomorrow's Sunnah fast, anchored to today's Maghrib (time to plan suhoor).
+        // Eve-before nudge for tomorrow's Sunnah fast: any tick from Maghrib to midnight, persisted latch —
+        // so a PC asleep at Maghrib (or an app restart) still gets the notice, exactly once.
         if (_cfg.SunnahFastReminder && _times.TryGetValue("maghrib", out var mts)
-            && InWindow(now, DateTime.Today.Add(mts)) && _fired.Add($"{now:yyyyMMdd}:sunnahfast"))
+            && now >= DateTime.Today.Add(mts) && _state.SunnahFastNoticed != $"{now:yyyy-MM-dd}"
+            && SunnahFastReason(DateTime.Today.AddDays(1)) is { } reason)
         {
-            var reason = SunnahFastReason(DateTime.Today.AddDays(1));
-            if (reason != null)
-                Notify(Strings.T("balloon.fastTitle"), Strings.F("balloon.fastBody", FastReasonName(reason)));
+            _state.SunnahFastNoticed = $"{now:yyyy-MM-dd}";
+            _state.Save();
+            Notify(Strings.T("balloon.fastTitle"), Strings.F("balloon.fastBody", FastReasonName(reason)));
         }
 
         // Friday nudges: Surah Al-Kahf at Fajr, and a Jumu'ah heads-up shortly before Dhuhr.
@@ -455,6 +567,12 @@ public class AppHost : ApplicationContext
             var at = DateTime.Today.Add(ts);
             if (now < at) return (key, at, FormatCountdown(at - now)); // upcoming
             if (now < at.AddMinutes(1)) return (key, at, "now");        // happening this minute
+            int iq = _cfg.IqamahOf(key);
+            if (iq > 0 && now < at.AddMinutes(iq))                      // counting down to iqamah
+            {
+                var iqAt = at.AddMinutes(iq);
+                return (key, iqAt, "iq|" + FormatCountdown(iqAt - now));
+            }
         }
         var tomorrow = DateTime.Today.AddDays(1);
         var t = PrayerCalculator.Compute(tomorrow, _cfg.Latitude, _cfg.Longitude,
@@ -529,6 +647,7 @@ public class AppHost : ApplicationContext
     {
         SystemEvents.TimeChanged -= OnTimeChanged;
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        DataUsage.Flush();
         AudioPlayer.Stop();
         _data.Stop();
         _pos.Stop();

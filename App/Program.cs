@@ -8,11 +8,15 @@ namespace PrayerTray;
 
 static class Program
 {
+    static Mutex? _mutex;
+
     [STAThread]
     static void Main()
     {
-        using var mutex = new Mutex(true, "PrayerTray.SingleInstance", out bool isNew);
+        _mutex = new Mutex(true, "PrayerTray.SingleInstance", out bool isNew);
         if (!isNew) return;
+
+        CleanupOldUpdate();
 
         // Survive a stray exception instead of dying silently; log the stack so it can be diagnosed.
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
@@ -25,6 +29,24 @@ static class Program
 
         ApplicationConfiguration.Initialize();
         Application.Run(new AppHost());
+    }
+
+    // Called on the UI thread right before spawning the updated exe (mutex is thread-affine).
+    internal static void ReleaseSingleInstance()
+    {
+        try { _mutex?.ReleaseMutex(); _mutex?.Dispose(); _mutex = null; }
+        catch { /* already released/disposed */ }
+    }
+
+    // The previous exe left behind by a self-update; may still be locked for a moment — next launch retries.
+    static void CleanupOldUpdate()
+    {
+        try
+        {
+            string? p = Environment.ProcessPath;
+            if (p != null && File.Exists(p + ".old")) File.Delete(p + ".old");
+        }
+        catch { /* best effort */ }
     }
 
     static void Report(Exception? ex)

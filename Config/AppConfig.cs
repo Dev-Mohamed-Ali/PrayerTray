@@ -20,6 +20,12 @@ public class AppConfig
     public int AsrAdjust { get; set; }
     public int MaghribAdjust { get; set; }
     public int IshaAdjust { get; set; }
+    // Per-prayer iqamah offset in minutes (0 = off); pill counts down to azan + offset after each azan.
+    public int FajrIqamah { get; set; }
+    public int DhuhrIqamah { get; set; }
+    public int AsrIqamah { get; set; }
+    public int MaghribIqamah { get; set; }
+    public int IshaIqamah { get; set; }
     public bool Use24Hour { get; set; } = false;
     public string WidgetAnchor { get; set; } = "Right"; // Left | Right
     public int WidgetOffset { get; set; } = 12;          // px gap from that edge (or from the tray)
@@ -29,8 +35,12 @@ public class AppConfig
     public bool ShowNetSpeed { get; set; } = false;      // append live ↓/↑ throughput to the pill
     public bool ShowPing { get; set; } = false;          // append live ping latency (ms) to the pill
     public string PingHost { get; set; } = "1.1.1.1";    // host to ping for latency
+    public bool PingTcp { get; set; } = false;           // TCP connect probe instead of kernel ICMP
+    public string? NetInterfaceId { get; set; }          // restrict meters/usage to one adapter (null = all)
     // Narrow meter slots sized for 2-digit values; pill may widen once when a value outgrows them.
     public bool CompactMeters { get; set; } = false;
+    public bool TrackDataUsage { get; set; } = false;    // accumulate daily rx/tx into usage.json
+    public bool ShowDataUsage { get; set; } = false;     // append today's total to the pill
     // 999 = use system timezone for the date (handles DST); else fixed UTC offset hours.
     public double TimezoneHours { get; set; } = 999;
 
@@ -61,6 +71,27 @@ public class AppConfig
 
     public AppConfig Clone() => (AppConfig)MemberwiseClone();
 
+    /// <summary>Clamp all ranged fields; run on any config that bypassed the form (file load, import).</summary>
+    public void Sanitize()
+    {
+        Latitude = Math.Clamp(Latitude, -90, 90);
+        Longitude = Math.Clamp(Longitude, -180, 180);
+        FajrAdjust = Math.Clamp(FajrAdjust, -60, 60);
+        DhuhrAdjust = Math.Clamp(DhuhrAdjust, -60, 60);
+        AsrAdjust = Math.Clamp(AsrAdjust, -60, 60);
+        MaghribAdjust = Math.Clamp(MaghribAdjust, -60, 60);
+        IshaAdjust = Math.Clamp(IshaAdjust, -60, 60);
+        FajrIqamah = Math.Clamp(FajrIqamah, 0, 60);
+        DhuhrIqamah = Math.Clamp(DhuhrIqamah, 0, 60);
+        AsrIqamah = Math.Clamp(AsrIqamah, 0, 60);
+        MaghribIqamah = Math.Clamp(MaghribIqamah, 0, 60);
+        IshaIqamah = Math.Clamp(IshaIqamah, 0, 60);
+        WidgetOffset = Math.Clamp(WidgetOffset, 0, 2000);
+        HijriAdjust = Math.Clamp(HijriAdjust, -2, 2);
+        ReminderMinutes = Math.Clamp(ReminderMinutes, 1, 60);
+        FontScalePct = Math.Clamp(FontScalePct, 80, 150);
+    }
+
     /// <summary>Copy all fields from another instance in place (used to revert on Cancel).</summary>
     public void CopyFrom(AppConfig o)
     {
@@ -68,9 +99,13 @@ public class AppConfig
         HighLats = o.HighLats;
         FajrAdjust = o.FajrAdjust; DhuhrAdjust = o.DhuhrAdjust; AsrAdjust = o.AsrAdjust;
         MaghribAdjust = o.MaghribAdjust; IshaAdjust = o.IshaAdjust;
+        FajrIqamah = o.FajrIqamah; DhuhrIqamah = o.DhuhrIqamah; AsrIqamah = o.AsrIqamah;
+        MaghribIqamah = o.MaghribIqamah; IshaIqamah = o.IshaIqamah;
         Use24Hour = o.Use24Hour; WidgetAnchor = o.WidgetAnchor; WidgetOffset = o.WidgetOffset; Theme = o.Theme;
         MonitorDeviceName = o.MonitorDeviceName; HideOnFullscreen = o.HideOnFullscreen; ShowNetSpeed = o.ShowNetSpeed;
-        ShowPing = o.ShowPing; PingHost = o.PingHost; CompactMeters = o.CompactMeters;
+        ShowPing = o.ShowPing; PingHost = o.PingHost; PingTcp = o.PingTcp;
+        NetInterfaceId = o.NetInterfaceId; CompactMeters = o.CompactMeters;
+        TrackDataUsage = o.TrackDataUsage; ShowDataUsage = o.ShowDataUsage;
         TimezoneHours = o.TimezoneHours;
         Language = o.Language; ShowHijriDate = o.ShowHijriDate; HijriAdjust = o.HijriAdjust;
         ShowIslamicEvents = o.ShowIslamicEvents; SunnahFastReminder = o.SunnahFastReminder;
@@ -96,7 +131,11 @@ public class AppConfig
         try
         {
             if (File.Exists(Path))
-                return JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(Path)) ?? new AppConfig();
+            {
+                var cfg = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(Path)) ?? new AppConfig();
+                cfg.Sanitize();
+                return cfg;
+            }
         }
         catch { /* corrupt config -> defaults */ }
         return new AppConfig();
@@ -116,6 +155,12 @@ public class AppConfig
 
     public HighLatRule HighLat =>
         Enum.TryParse<HighLatRule>(HighLats, out var r) ? r : HighLatRule.AngleBased;
+
+    public int IqamahOf(string key) => key switch
+    {
+        "fajr" => FajrIqamah, "dhuhr" => DhuhrIqamah, "asr" => AsrIqamah,
+        "maghrib" => MaghribIqamah, "isha" => IshaIqamah, _ => 0,
+    };
 
     public Dictionary<string, int> TimeAdjust() => new()
     {

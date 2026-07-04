@@ -161,6 +161,9 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
         _w = Math.Max(S(110), _w);
     }
 
+    // Between-segment separator: [gap] · [gap], same rhythm as the main "·".
+    int SegGap => S(6) + S(6) + S(6);
+
     // Total tail width from the per-segment slots (grow-only; reset on font/DPI basis change).
     int NetWidth(Font fMain)
     {
@@ -177,7 +180,7 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
                 _segSlots[i] = (int)Math.Ceiling(_measure.MeasureString(_segs[i].tmpl, fMain).Width);
             int w = (int)Math.Ceiling(_measure.MeasureString(_segs[i].text, fMain).Width);
             if (w > _segSlots[i]) _segSlots[i] = w;
-            total += _segSlots[i] + (i > 0 ? S(5) : 0);
+            total += _segSlots[i] + (i > 0 ? SegGap : 0);
         }
         return total;
     }
@@ -301,7 +304,9 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
                 for (int i = _segs.Length - 1; i >= 0; i--)
                 {
                     g.DrawString(_segs[i].text, fMain, dim, new RectangleF(xl, 0, _w - xl, _h), near);
-                    xl += _segSlots[i] + S(5);
+                    if (i > 0)
+                        g.DrawString("·", fMain, dim, new RectangleF(xl + _segSlots[i] + S(6), 0, S(6), _h), near);
+                    xl += _segSlots[i] + SegGap;
                 }
                 g.DrawString("·", fMain, dim, new RectangleF(S(12) + wNet + S(8), 0, S(6), _h), near);
             }
@@ -333,7 +338,9 @@ public sealed class TaskbarWidget : NativeWindow, IDisposable
             for (int i = _segs.Length - 1; i >= 0; i--)
             {
                 g.DrawString(_segs[i].text, fMain, dim, new RectangleF(0, 0, xr, _h), farSf);
-                xr -= _segSlots[i] + S(5);
+                if (i > 0)
+                    g.DrawString("·", fMain, dim, new RectangleF(xr - _segSlots[i] - S(12), 0, S(6), _h), sf);
+                xr -= _segSlots[i] + SegGap;
             }
         }
     }
