@@ -1,12 +1,11 @@
 //! Manual update check against the GitHub latest release, port of Services/UpdateChecker.cs.
-//! Prefers the Rust asset name, falling back to the legacy standalone name (migration path).
 
 use super::http;
 
 pub const RELEASES_URL: &str = "https://github.com/Dev-Mohamed-Ali/PrayerTray/releases/latest";
 const LATEST_API: &str = "https://api.github.com/repos/Dev-Mohamed-Ali/PrayerTray/releases/latest";
 
-const WANTED_ASSETS: [&str; 2] = ["PrayerTray-win-x64.exe", "PrayerTray-standalone-win-x64.exe"];
+const WANTED_ASSET: &str = "PrayerTray-win-x64.exe";
 
 #[derive(Clone, Debug)]
 pub struct UpdateInfo {
@@ -41,19 +40,13 @@ pub fn fetch_latest() -> Option<UpdateInfo> {
     let latest = parse_version(tag)?;
     let url = root.get("html_url").and_then(|u| u.as_str()).unwrap_or(RELEASES_URL).to_string();
 
-    let mut asset_url = None;
-    if let Some(assets) = root.get("assets").and_then(|a| a.as_array()) {
-        for wanted in WANTED_ASSETS {
-            asset_url = assets.iter().find_map(|a| {
-                (a.get("name")?.as_str()? == wanted)
-                    .then(|| a.get("browser_download_url")?.as_str().map(str::to_string))
-                    .flatten()
-            });
-            if asset_url.is_some() {
-                break;
-            }
-        }
-    }
+    let asset_url = root.get("assets").and_then(|a| a.as_array()).and_then(|assets| {
+        assets.iter().find_map(|a| {
+            (a.get("name")?.as_str()? == WANTED_ASSET)
+                .then(|| a.get("browser_download_url")?.as_str().map(str::to_string))
+                .flatten()
+        })
+    });
     Some(UpdateInfo { latest, url, asset_url })
 }
 

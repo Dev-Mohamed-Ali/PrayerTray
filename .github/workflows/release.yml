@@ -40,17 +40,11 @@ jobs:
         working-directory: rust
         run: cargo build --release --target x86_64-pc-windows-msvc
 
-      # The legacy asset names keep in-app updates working for users on the old
-      # .NET builds — their UpdateChecker looks for these exact names and swaps
-      # the exe in place, migrating them onto the native build automatically.
       - name: Stage release assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force release | Out-Null
-          $exe = "rust/target/x86_64-pc-windows-msvc/release/prayertray.exe"
-          Copy-Item $exe release/PrayerTray-win-x64.exe
-          Copy-Item $exe release/PrayerTray-standalone-win-x64.exe
-          Copy-Item $exe release/PrayerTray-needs-dotnet8-win-x64.exe
+          Copy-Item rust/target/x86_64-pc-windows-msvc/release/prayertray.exe release/PrayerTray-win-x64.exe
           Get-ChildItem release | Select-Object Name, Length
 
       # Manual runs (no tag): just upload artifacts so the build is still verifiable.
@@ -65,18 +59,11 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
-          # Draft: assets get verified (and the v1.x update path rehearsed against the
-          # draft's download URLs) before users' update checks can see the release.
+          # Draft: assets get verified before users' update checks can see the release.
           draft: true
           generate_release_notes: true
           body: |
             ### Download
 
-            **PrayerTray-win-x64.exe** (~5 MB) — native app, no runtime needed, runs on Windows 10/11.
-
-            *(The `-standalone` and `-needs-dotnet8` files are the same native exe under the old
-            names so in-app updates from v1.x keep working — .NET is no longer required.)*
-          files: |
-            release/PrayerTray-win-x64.exe
-            release/PrayerTray-standalone-win-x64.exe
-            release/PrayerTray-needs-dotnet8-win-x64.exe
+            **PrayerTray-win-x64.exe** (~3.5 MB) — native app, no runtime needed, runs on Windows 10/11.
+          files: release/PrayerTray-win-x64.exe

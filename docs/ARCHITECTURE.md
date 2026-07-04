@@ -89,15 +89,14 @@ stay Western.
 carrying `PKEY_AppUserModel_ID` (created via `IShellLinkW`/`IPropertyStore`) — the same recipe and
 the same AUMID as v1.x, so upgraders don't get duplicate shortcuts. Tray balloons are the fallback.
 
-## Releases & migration from v1.x
+## Releases
 
 Pushing a `vX.Y.Z` tag triggers `.github/workflows/release.yml`: the tag version is patched into
 `Cargo.toml` + `prayertray.rc`, tests run, and a **draft** release is created for manual inspection
-before publishing. The exe is uploaded as `PrayerTray-win-x64.exe` **plus** the two legacy v1.x
-asset names (`-standalone`, `-needs-dotnet8`) — the v1.x in-app updater looks for those exact names
-and swaps the exe in place, migrating users onto the native build automatically. Config path, AUMID,
-mutex, and Run-key are unchanged, so nothing else needs migrating. Dev builds are version `0.0.0`
-and never self-update; set `PRAYERTRAY_DEV_MUTEX=1` to run one beside an installed release.
+before publishing, with `PrayerTray-win-x64.exe` as the single asset. Config path, AUMID, mutex,
+and Run-key are unchanged from v1.x, so an existing install's settings carry over. Dev builds are
+version `0.0.0` and never self-update; set `PRAYERTRAY_DEV_MUTEX=1` to run one beside an installed
+release.
 
 ## Files (`rust/src/`)
 

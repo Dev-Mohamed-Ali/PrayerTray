@@ -15,11 +15,7 @@ times computed **fully offline** (PrayTimes.org algorithm). Idle footprint ~30 M
 
 Grab **`PrayerTray-win-x64.exe`** from [**Releases**](../../releases/latest) — no install wizard,
 no .NET, nothing else to download. Run it; it lands on the taskbar and (on first launch) helps you
-set your location.
-
-*(Upgrading from v1.x? Use the in-app **Check for updates** — it migrates you to the native build
-automatically, keeping your settings. The `-standalone` and `-needs-dotnet8` release files are the
-same native exe under the old names to make that work.)*
+set your location. Settings from a v1.x install are picked up automatically (same config file).
 
 ## Features
 
