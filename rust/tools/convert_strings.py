@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "I18n" / "Strings.cs"
+SRC = ROOT / "legacy-dotnet" / "I18n" / "Strings.cs"
 DST = ROOT / "rust" / "src" / "i18n" / "data.rs"
 
 LANGS = ["En", "Ar", "Fr", "Tr", "Ur", "Id"]

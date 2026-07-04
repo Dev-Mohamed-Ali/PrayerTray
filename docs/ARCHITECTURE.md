@@ -4,23 +4,37 @@ Design notes for contributors. For user-facing docs see the [README](../README.m
 
 ## Shape
 
-Single `PrayerTray` assembly, nested namespaces, **zero NuGet dependencies** — only the .NET 8
-Desktop framework and raw Win32/DWM/COM P/Invoke. Prayer times are computed **offline** with the
-PrayTimes.org algorithm. Idle footprint ~10 MB private RAM.
+Single Rust crate in `rust/` targeting `x86_64-pc-windows-msvc`. Dependencies: the `windows`
+crate (feature-gated Win32/WinRT bindings) plus `serde`/`serde_json` for the config contract —
+nothing else. Rendering is the **GDI+ flat C API** behind RAII wrappers (`ui/gdip.rs`), the same
+renderer the original C# build used via System.Drawing, so text metrics and Arabic/Urdu shaping
+match. Release profile: `opt-level="z"`, fat LTO, `panic="abort"`, stripped → ~3.5 MB exe
+(~0.4 MB code + two embedded azan mp3s). Idle footprint ~30 MB RAM.
 
-Two build variants from one csproj:
+Prayer times are computed **offline** with the PrayTimes.org algorithm; the network is touched only
+by explicit user actions (location detect, update check).
 
-| Variant | TFM | WinRT | Built with |
-|---------|-----|-------|------------|
-| Default | `net8.0-windows10.0.19041.0` | yes (Action Center toasts) | `dotnet build -c Release` |
-| ManualOnly | `net8.0-windows` | no | `dotnet build -c Release -p:ManualOnly=true` |
+The original C# implementation lives in `legacy-dotnet/` as the porting reference. It still builds
+(`dotnet build legacy-dotnet/PrayerTray.csproj`) but is no longer released.
 
-WinRT-only code is gated behind `#if !MANUAL_ONLY`; the ManualOnly build falls back to tray balloons.
+## Exactness: ported, not re-derived
 
-`InvariantGlobalization=true` keeps the binary small (no ICU) and guarantees Western digits.
-`PredefinedCulturesOnly=false` is set alongside it so WinForms' `WM_INPUTLANGCHANGE` handling
-(`CultureInfo.GetCultureInfo(langid)`) returns an invariant-backed culture instead of throwing on a
-keyboard-layout switch — staying in invariant mode, no behavior change beyond removing that crash.
+The port had to produce the *same minutes* users already see, so nothing numeric was re-implemented
+from a paper spec:
+
+- `rust/tools/genfix/` compiles the **actual C# `PrayerTimes.cs`** and dumps 1,920 fixture cases
+  (8 cities × 5 methods × Asr rules × high-latitude rules, incl. polar summer) plus 406 Hijri cases;
+  `cargo test` exact-matches them.
+- The Umm al-Qura month table (`src/calc/umalqura_data.rs`) is dumped from .NET's
+  `UmAlQuraCalendar` (1318–1500 AH), not computed — a generic tabular algorithm would shift dates.
+- C# `Math.Round` is banker's rounding → the Rust side uses `round_ties_even()`.
+- `src/i18n/data.rs` is generated from `legacy-dotnet/I18n/Strings.cs` by
+  `tools/convert_strings.py`. Never hand-edit generated files; rerun the tools.
+
+Config compatibility is a hard contract: `%APPDATA%\PrayerTray\config.json`, PascalCase via serde,
+sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). Fields for features not
+yet ported (net meters, data usage, NIC picker) stay in the struct so a v1 config round-trips
+losslessly.
 
 ## How it sits on the taskbar — and why (Windows 11)
 
@@ -34,46 +48,82 @@ not assumed:
   embedded pill is buried under it.
 
 So the only option — the same one every other Win11 taskbar widget uses — is a **top-level
-always-on-top overlay** drawn over the taskbar. Its one weakness (getting covered when you click the
-taskbar) is fixed with a **`SetWinEventHook`** that re-raises the pill the instant the taskbar comes
-forward (~1 frame), so there's no visible flicker and no slow polling.
+always-on-top overlay** (`WS_POPUP`, no-activate, **owned by `Shell_TrayWnd`** so it rides the
+taskbar's z-band). Its one weakness (getting covered when you click the taskbar) is fixed with
+**`SetWinEventHook`** (`EVENT_SYSTEM_FOREGROUND` global + `EVENT_OBJECT_REORDER` scoped to the
+taskbar thread, 16 ms debounce) that re-raises the pill the instant the taskbar comes forward — no
+flicker, no polling.
 
-Windows 10 (1809+) is supported by the same overlay approach (`Shell_TrayWnd`/`TrayNotifyWnd` exist;
-the Win11-only DWM rounded-corner hint on the popup just no-ops) but is not yet hardware-tested.
-A vertical taskbar is not handled on either OS.
+Corollary: popup menus clip to the *monitor*, not the work area, and the taskbar band would hide
+any rows underneath it — so `show_menu` passes `TPMPARAMS.rcExclude` = the taskbar strip with
+`TPM_VERTICAL`.
+
+Windows 10 (1809+) is supported by the same overlay approach; a vertical taskbar is not handled.
+
+## Threading & window plumbing
+
+One UI thread owns all windows, timers (1 s render / 15 s recompute), hooks, and GDI+. Network work
+(update check/download, IP geolocation) runs on `std::thread::spawn` and posts results back with
+`PostMessageW`, passing `Box::into_raw` payloads in `lparam`. The wndproc trampoline
+(`ui/window.rs`) stores the handler pointer from `WM_NCCREATE`'s `lpCreateParams` in
+`GWLP_USERDATA` and routes to a `WindowHandler` trait.
+
+A hidden **top-level** (not message-only) window receives the broadcasts that drive resilience:
+`WM_POWERBROADCAST` (resume), `WM_TIMECHANGE`, `WM_SETTINGCHANGE` (theme follow), and
+`TaskbarCreated` (Explorer restart → re-add tray icon, rebuild pill).
+
+The settings dialog is native Win32 children (combo/edit/checkbox, owner-drawn buttons) themed via
+`WM_CTLCOLOR*` + `SetWindowTheme("DarkMode_CFD")`, run in a nested modal loop; full RTL via
+`WS_EX_LAYOUTRTL`.
 
 ## Localization
 
-UI strings live in an embedded dict-of-dicts keyed by a `Language` enum (`I18n/Strings.cs`) — no
-`.resx`, no satellite assemblies, single-file safe. Missing keys fall back to English. The OS UI
-language is detected via `GetUserDefaultUILanguage() & 0x3FF` (CultureInfo can't tell us under
-invariant mode). Arabic and Urdu flip the whole UI to right-to-left; numerals stay Western.
+UI strings live in a generated static table keyed by language (`src/i18n/data.rs`) — binary-searched
+`t(key)`, `{0}` substitution, English fallback. OS language detected via
+`GetUserDefaultUILanguage() & 0x3FF`. Arabic and Urdu flip the whole UI to right-to-left; numerals
+stay Western.
 
-## Releases
+## Toasts without a package identity
 
-Pushing a `vX.Y.Z` tag triggers `.github/workflows/release.yml`, which builds and publishes both
-assets via `softprops/action-gh-release`. No version string lives in the csproj — the tag drives it.
+`SetCurrentProcessExplicitAppUserModelID("DynamicEG.PrayerTray")` plus a Start-Menu shortcut
+carrying `PKEY_AppUserModel_ID` (created via `IShellLinkW`/`IPropertyStore`) — the same recipe and
+the same AUMID as v1.x, so upgraders don't get duplicate shortcuts. Tray balloons are the fallback.
 
-## Files
+## Releases & migration from v1.x
+
+Pushing a `vX.Y.Z` tag triggers `.github/workflows/release.yml`: the tag version is patched into
+`Cargo.toml` + `prayertray.rc`, tests run, and a **draft** release is created for manual inspection
+before publishing. The exe is uploaded as `PrayerTray-win-x64.exe` **plus** the two legacy v1.x
+asset names (`-standalone`, `-needs-dotnet8`) — the v1.x in-app updater looks for those exact names
+and swaps the exe in place, migrating users onto the native build automatically. Config path, AUMID,
+mutex, and Run-key are unchanged, so nothing else needs migrating. Dev builds are version `0.0.0`
+and never self-update; set `PRAYERTRAY_DEV_MUTEX=1` to run one beside an installed release.
+
+## Files (`rust/src/`)
 
 | File | Role |
 |------|------|
-| `Calc/PrayerTimes.cs` | Offline astronomical calculation (incl. high-latitude rules) |
-| `Calc/IslamicEvents.cs` | Islamic special days + next-major-event lookup from the Hijri date |
-| `Config/AppConfig.cs` | JSON config load/save |
-| `I18n/Strings.cs` | Embedded multi-language string catalog + RTL/date helpers (no satellites) |
-| `Services/AudioPlayer.cs` | Azan/reminder playback via winmm MCI + synthesized reminder tones |
-| `Services/LocationService.cs` | One-shot location detect (Windows Location → IP) + map-link parsing |
-| `Services/NetSpeed.cs` | Live ↓/↑ throughput from NIC byte counters (optional pill meter) |
-| `Services/Latency.cs` | Async ICMP ping latency (optional pill `ms` meter) |
-| `Services/ToastService.cs` | Action Center toasts via WinRT + auto AUMID Start-Menu shortcut |
-| `Native/Interop.cs` | Win32/DWM P/Invoke: taskbar, geometry, DPI, fullscreen detect, light/dark title bar |
-| `Native/Displays.cs` | Monitor enumeration + friendly names (CCD DisplayConfig API) |
-| `UI/Theme.cs` | Palettes (Dark/Light/Midnight/Slate/Warm) + Auto-follow + taskbar geometry |
-| `UI/IconRenderer.cs` | Renders the tray glyph |
-| `UI/TaskbarWidget.cs` | The overlay pill — raw Win32 window, DPI-aware, per-monitor, instant re-raise |
-| `UI/PrayerPopup.cs` | Today's-times popup (custom-painted) |
-| `UI/SettingsForm.cs` | Settings dialog |
-| `App/Program.cs` | Entry point (single-instance) |
-| `App/AppHost.cs` | Orchestrator: widget + tray + popup + timers + notifications |
-| `App/TaskbarWatcher.cs` | Rebuilds the pill on Explorer restart; signals Windows theme changes |
+| `calc/praytimes.rs` | Offline astronomical calculation (incl. high-latitude rules) |
+| `calc/hijri.rs` + `calc/umalqura_data.rs` | Umm al-Qura Hijri conversion (generated .NET table) |
+| `calc/events.rs` | Islamic special days + next-major-event lookup |
+| `config.rs` | serde config load/save/sanitize, v1-compatible schema |
+| `datetime.rs` | Civil-date ↔ Rata Die helpers (no chrono) |
+| `i18n/` | Language runtime + generated string catalog |
+| `native/taskbar.rs` | Taskbar find/geometry, fullscreen detect, DPI |
+| `native/displays.rs` | Monitor enumeration + CCD friendly names |
+| `native/startup.rs` | HKCU Run key + StartupApproved handling |
+| `native/time.rs` | Local time + DST-aware UTC offset |
+| `ui/gdip.rs` | RAII GDI+ wrappers — the only unsafe-heavy drawing zone |
+| `ui/window.rs` | Window-class/wndproc trampoline plumbing |
+| `ui/widget.rs` | The overlay pill — owned by the taskbar, hooks, DPI, RTL |
+| `ui/popup.rs` | Today's-times popup (pin, drag, saved position) |
+| `ui/settings.rs` + `ui/controls.rs` | Settings dialog + themed native controls |
+| `ui/icon.rs` | Tray icon, tooltip, balloon fallback |
+| `ui/theme.rs` | Palettes (Dark/Light/Midnight/Slate/Warm) + Auto-follow |
+| `services/audio.rs` | Azan/reminder playback via MCI + synthesized tones |
+| `services/toast.rs` | Action Center toasts + AUMID shortcut |
+| `services/location.rs` | WinRT geolocation → IP fallback + map-link parsing |
+| `services/update.rs` | GitHub release check + in-place exe swap |
+| `services/http.rs` | WinHTTP GET/download (no TLS crate needed) |
+| `app.rs` | Orchestrator: pill + tray + popup + timers + notification engine |
+| `main.rs` | Entry point: single-instance mutex, panic log, `.old` cleanup |

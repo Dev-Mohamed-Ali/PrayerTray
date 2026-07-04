@@ -8,6 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Compile the app's real algorithm so fixtures are exact, not re-derived. -->
-    <Compile Include="..\..\..\Calc\PrayerTimes.cs" />
+    <Compile Include="..\..\..\legacy-dotnet\Calc\PrayerTimes.cs" />
   </ItemGroup>
 </Project>

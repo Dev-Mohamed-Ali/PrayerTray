@@ -4,8 +4,8 @@ A lightweight prayer-times companion for **Windows 10 (1809+) and 11**. It puts 
 taskbar** showing the next prayer and a live countdown — click it for the full day. Reminders, azan
 playback, themes, and a localized RTL-aware UI round it out.
 
-Native WinForms + raw Win32, **zero dependencies**, times computed **fully offline**
-(PrayTimes.org algorithm). Idle footprint ~10 MB RAM.
+Native Win32 written in Rust — **one ~3.5 MB exe, zero dependencies, no runtime to install** — with
+times computed **fully offline** (PrayTimes.org algorithm). Idle footprint ~30 MB RAM.
 
 ```
 ● Dhuhr  12:59 PM · 1:15
@@ -13,14 +13,13 @@ Native WinForms + raw Win32, **zero dependencies**, times computed **fully offli
 
 ## Download
 
-Grab the latest from [**Releases**](../../releases/latest) — two builds, no install wizard:
+Grab **`PrayerTray-win-x64.exe`** from [**Releases**](../../releases/latest) — no install wizard,
+no .NET, nothing else to download. Run it; it lands on the taskbar and (on first launch) helps you
+set your location.
 
-| Asset | Size | Needs .NET? | Use it if… |
-|-------|------|-------------|------------|
-| `PrayerTray-standalone-win-x64.exe` | ~77 MB | No | **You're not sure.** Self-contained, runs anywhere. Adds one-click location auto-detect. |
-| `PrayerTray-needs-dotnet8-win-x64.exe` | ~3 MB | [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) | You already have .NET 8 and want a tiny download. |
-
-Run the exe — it lands on the taskbar and (on first launch) helps you set your location.
+*(Upgrading from v1.x? Use the in-app **Check for updates** — it migrates you to the native build
+automatically, keeping your settings. The `-standalone` and `-needs-dotnet8` release files are the
+same native exe under the old names to make that work.)*
 
 ## Features
 
@@ -28,28 +27,30 @@ Run the exe — it lands on the taskbar and (on first launch) helps you set your
   rounded, DPI-aware, per-monitor.
 - **Click for the day** — popup with all of today's times, next prayer highlighted. Pin it to keep it
   open and drag it anywhere.
-- **Reminders & azan** — optional balloon/toast + sound N minutes before each prayer; play a bundled
-  adhan (Makkah / Madinah) or your own file at prayer time.
-- **Rich notifications** — Action Center toasts where available, tray balloons as fallback.
+- **Reminders & azan** — optional toast + sound N minutes before each prayer; play a bundled adhan
+  (Makkah / Madinah) or your own file at prayer time; optional iqamah countdown.
+- **Rich notifications** — Action Center toasts, tray balloons as fallback.
 - **Stays in sync** — recomputes on clock/timezone change or resume-from-sleep.
 - **Hijri date & Islamic events** — Umm al-Qura date with a moon-sighting adjuster; special-day and
   next-event lines (Ramadan, the Eids, Arafah, Ashura, white days, …).
 - **Sunnah & Friday reminders** — eve-before nudge for recommended fasts; Al-Kahf at Fajr and a
   Jumu'ah heads-up on Fridays.
-- **Optional pill meters** — live internet speed (↓/↑) and/or ping latency (ms).
 - **Themes & fonts** — Auto (follows Windows light/dark) or a fixed palette; any installed font, 80–150%.
-- **Check for updates** — a tray-menu item that compares against the latest GitHub release and opens
-  the download page. Manual only — the network is never touched unless you click it.
+- **Check for updates** — a tray-menu item that compares against the latest GitHub release and
+  installs in place. Manual only — the network is never touched unless you click it.
 - **Localized** — English, العربية, Français, Türkçe, اردو, Indonesia. Arabic and Urdu switch the whole
   UI to right-to-left; numerals stay Western.
+
+The v1.x net-speed / ping pill meters and data-usage tracking are not in v2.0 yet — they return in a
+v2.x release. Their settings survive the upgrade untouched.
 
 ## Settings
 
 Right-click the pill (or tray icon) → **Settings** — a themed dialog (Location · Calculation ·
-Appearance · Notifications) with live preview. Set city, lat/long, calculation method
+Appearance · Religious · Notifications) with live preview. Set city, lat/long, calculation method
 (MWL / ISNA / Egypt / Makkah / Karachi), Asr juristic, high-latitude rule, per-prayer ± minute
 fine-tuning, clock format, widget side/gap, monitor, and more. Saved to
-`%APPDATA%\PrayerTray\config.json`; defaults to Makkah until changed.
+`%APPDATA%\PrayerTray\config.json` (same file across v1 and v2); defaults to Makkah until changed.
 
 **Set your location** — *Detect* (Windows Location service, falls back to IP geolocation) or *Pick on
 map* (opens Google Maps; paste the coordinates or a share link). The network is touched only while
@@ -58,15 +59,18 @@ setting location — prayer times are always computed offline.
 ## Build from source
 
 ```powershell
-dotnet build  -c Release
-dotnet run    -c Release
-dotnet publish -c Release -r win-x64 --self-contained -o .\publish   # standalone single-file exe
+cd rust
+cargo build --release      # needs MSVC Build Tools + Windows SDK
+cargo test                 # calc fixtures (exact-match vs the C# engine), config, i18n
 ```
 
-Requires the .NET 8 SDK. Pushing a `vX.Y.Z` tag builds and publishes both release assets via GitHub
-Actions.
+Pushing a `vX.Y.Z` tag builds, tests, and drafts a GitHub release via Actions. See
+[`rust/README.md`](rust/README.md) for dev-mode notes and data-regeneration tools.
+
+The original C# (.NET 8 / WinForms) implementation lives in [`legacy-dotnet/`](legacy-dotnet/) as
+the porting reference; it still builds but is no longer released.
 
 ## Internals
 
-How the pill rides the taskbar, the two build variants, localization, and a file-by-file map live in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+How the pill rides the taskbar, exactness guarantees of the port, threading, and a file-by-file map
+live in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

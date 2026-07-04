@@ -12,7 +12,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationIcon>../app.ico</ApplicationIcon>
     <AssemblyName>PrayerTray</AssemblyName>
     <!-- Trim + single file keep RAM/footprint low for the published exe -->
     <PublishSingleFile>true</PublishSingleFile>
@@ -34,14 +34,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="app.ico" />
+    <EmbeddedResource Include="../app.ico" LogicalName="PrayerTray.app.ico" />
   </ItemGroup>
 
   <!-- Bundled adhans. Each is embedded only if present; absent = build still works and that
        azan option is simply hidden. -->
   <ItemGroup>
-    <EmbeddedResource Include="assets/azan-makkah.mp3" Condition="Exists('assets/azan-makkah.mp3')" />
-    <EmbeddedResource Include="assets/azan-madinah.mp3" Condition="Exists('assets/azan-madinah.mp3')" />
+    <EmbeddedResource Include="../assets/azan-makkah.mp3" LogicalName="PrayerTray.assets.azan-makkah.mp3" Condition="Exists('../assets/azan-makkah.mp3')" />
+    <EmbeddedResource Include="../assets/azan-madinah.mp3" LogicalName="PrayerTray.assets.azan-madinah.mp3" Condition="Exists('../assets/azan-madinah.mp3')" />
   </ItemGroup>
 
 </Project>
