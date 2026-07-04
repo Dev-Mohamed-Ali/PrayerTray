@@ -14,40 +14,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          dotnet-version: '8.0.x'
+          targets: x86_64-pc-windows-msvc
 
-      # Bake the tag version into the assembly so the in-app update check can compare against it.
+      # Bake the tag version into Cargo.toml + the version resource so the in-app
+      # update check can compare against it (dev builds stay 0.0.0 and never self-update).
       - name: Compute version from tag
         shell: pwsh
         run: |
-          $v = if ($env:GITHUB_REF_NAME -match '^v(\d+\.\d+\.\d+)$') { $Matches[1] } else { '1.0.0' }
+          $v = if ($env:GITHUB_REF_NAME -match '^v(\d+\.\d+\.\d+)$') { $Matches[1] } else { '0.0.0' }
           "APP_VERSION=$v" >> $env:GITHUB_ENV
+          $parts = $v -split '\.'
+          (Get-Content rust/Cargo.toml) -replace '^version = "0\.0\.0"', "version = `"$v`"" | Set-Content rust/Cargo.toml
+          (Get-Content rust/prayertray.rc) `
+            -replace 'FILEVERSION 0,0,0,0', "FILEVERSION $($parts[0]),$($parts[1]),$($parts[2]),0" `
+            -replace 'PRODUCTVERSION 0,0,0,0', "PRODUCTVERSION $($parts[0]),$($parts[1]),$($parts[2]),0" `
+            -replace '"0\.0\.0"', "`"$v`"" | Set-Content rust/prayertray.rc
 
-      # Self-contained, compressed single file — runs on Win10 1809+/Win11 with nothing installed.
-      - name: Publish standalone (self-contained, auto-detect location)
-        run: >
-          dotnet publish PrayerTray.csproj -c Release -r win-x64 --self-contained true
-          -p:Version=${{ env.APP_VERSION }}
-          -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none
-          -o publish/auto
+      - name: Test
+        working-directory: rust
+        run: cargo test --release --target x86_64-pc-windows-msvc
 
-      # Framework-dependent single file — tiny; needs the .NET 8 Desktop Runtime.
-      - name: Publish dotnet8-dependent (framework-dependent, manual location)
-        run: >
-          dotnet publish PrayerTray.csproj -c Release -p:ManualOnly=true -r win-x64 --self-contained false
-          -p:Version=${{ env.APP_VERSION }}
-          -p:PublishSingleFile=true -p:DebugType=none
-          -o publish/manual
+      - name: Build
+        working-directory: rust
+        run: cargo build --release --target x86_64-pc-windows-msvc
 
+      # The legacy asset names keep in-app updates working for users on the old
+      # .NET builds — their UpdateChecker looks for these exact names and swaps
+      # the exe in place, migrating them onto the native build automatically.
       - name: Stage release assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force release | Out-Null
-          Copy-Item publish/auto/PrayerTray.exe release/PrayerTray-standalone-win-x64.exe
-          Copy-Item publish/manual/PrayerTray.exe release/PrayerTray-needs-dotnet8-win-x64.exe
+          $exe = "rust/target/x86_64-pc-windows-msvc/release/prayertray.exe"
+          Copy-Item $exe release/PrayerTray-win-x64.exe
+          Copy-Item $exe release/PrayerTray-standalone-win-x64.exe
+          Copy-Item $exe release/PrayerTray-needs-dotnet8-win-x64.exe
           Get-ChildItem release | Select-Object Name, Length
 
       # Manual runs (no tag): just upload artifacts so the build is still verifiable.
@@ -58,21 +61,19 @@ jobs:
           name: PrayerTray-exes
           path: release/*.exe
 
-      # Tag pushes: cut the GitHub release with auto-generated notes + both assets.
       - name: Publish GitHub release
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           body: |
-            ### Which download?
+            ### Download
 
-            | File | Size | .NET 8 needed? | Location |
-            |------|------|----------------|----------|
-            | **PrayerTray-standalone-win-x64.exe** | ~77 MB | **No** — runs on any Win10 1809+/Win11 | Auto-detect or manual |
-            | **PrayerTray-needs-dotnet8-win-x64.exe** | ~3 MB | **Yes** — [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) | Manual entry only |
+            **PrayerTray-win-x64.exe** (~5 MB) — native app, no runtime needed, runs on Windows 10/11.
 
-            Not sure? Grab **standalone** — bigger download, but it just runs.
+            *(The `-standalone` and `-needs-dotnet8` files are the same native exe under the old
+            names so in-app updates from v1.x keep working — .NET is no longer required.)*
           files: |
+            release/PrayerTray-win-x64.exe
             release/PrayerTray-standalone-win-x64.exe
             release/PrayerTray-needs-dotnet8-win-x64.exe
