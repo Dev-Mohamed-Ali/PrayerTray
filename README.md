@@ -17,6 +17,8 @@ Grab **`PrayerTray-win-x64.exe`** from [**Releases**](../../releases/latest) —
 no .NET, nothing else to download. Run it; it lands on the taskbar and (on first launch) helps you
 set your location. Settings from a v1.x install are picked up automatically (same config file).
 
+> **First run:** Windows SmartScreen may say it's an *unrecognized app* — that's the unsigned-app notice, not malware. Click **More info → Run anyway**.
+
 ## Features
 
 - **Taskbar pill** — next prayer, time, and live countdown (per-second in the final minute). Dark,
