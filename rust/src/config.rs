@@ -5,6 +5,10 @@ use crate::calc::praytimes::{method_by_key, AsrJuristic, CalcMethod, HighLatRule
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
 /// PopupX/PopupY unset sentinel (C# int.MinValue).
 pub const POPUP_UNSET: i32 = i32::MIN;
 /// TimezoneHours "use system timezone" sentinel.
@@ -46,6 +50,9 @@ pub struct AppConfig {
     pub compact_meters: bool,
     pub track_data_usage: bool,
     pub show_data_usage: bool,
+    // Rust-only field, not in the C# schema — omit when false to keep configs byte-compatible.
+    #[serde(skip_serializing_if = "is_false")]
+    pub track_work_hours: bool,
     pub timezone_hours: f64,
     pub language: String, // auto | en | ar | fr | tr | ur | id
     pub show_hijri_date: bool,
@@ -101,6 +108,7 @@ impl Default for AppConfig {
             compact_meters: false,
             track_data_usage: false,
             show_data_usage: false,
+            track_work_hours: false,
             timezone_hours: TZ_SYSTEM,
             language: "auto".into(),
             show_hijri_date: true,

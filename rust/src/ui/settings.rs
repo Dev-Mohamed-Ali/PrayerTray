@@ -95,6 +95,7 @@ const ID_NETIFACE: i32 = 284;
 const ID_COMPACT: i32 = 285;
 const ID_TRACKUSAGE: i32 = 286;
 const ID_SHOWUSAGE: i32 = 287;
+const ID_TRACKWORK: i32 = 288;
 const ID_SHOWHIJRI: i32 = 250;
 const ID_HIJRIADJ: i32 = 251;
 const ID_SHOWEVENTS: i32 = 252;
@@ -467,6 +468,8 @@ impl Dialog {
         self.check_at(2, ID_H24, i18n::t("chk.use24"), LBL_X, y, 380);
         y += ROW_H;
         self.check_at(2, ID_HIDEFS, i18n::t("chk.hideFs"), LBL_X, y, 380);
+        y += ROW_H;
+        self.check_at(2, ID_TRACKWORK, i18n::t("chk.trackWork"), LBL_X, y, 380);
 
         // --- Network ---
         let mut y = Y0;
@@ -623,6 +626,7 @@ impl Dialog {
         controls::set_checked(self.item(ID_COMPACT), cfg.compact_meters);
         controls::set_checked(self.item(ID_TRACKUSAGE), cfg.track_data_usage);
         controls::set_checked(self.item(ID_SHOWUSAGE), cfg.show_data_usage);
+        controls::set_checked(self.item(ID_TRACKWORK), cfg.track_work_hours);
         controls::set_checked(self.item(ID_SHOWHIJRI), cfg.show_hijri_date);
         self.set_num(ID_HIJRIADJ, cfg.hijri_adjust.clamp(-2, 2));
         controls::set_checked(self.item(ID_SHOWEVENTS), cfg.show_islamic_events);
@@ -717,6 +721,7 @@ impl Dialog {
         c.compact_meters = controls::checked(self.item(ID_COMPACT));
         c.track_data_usage = controls::checked(self.item(ID_TRACKUSAGE));
         c.show_data_usage = controls::checked(self.item(ID_SHOWUSAGE));
+        c.track_work_hours = controls::checked(self.item(ID_TRACKWORK));
         c.show_hijri_date = controls::checked(self.item(ID_SHOWHIJRI));
         c.hijri_adjust = self.get_num(ID_HIJRIADJ, -2, 2).unwrap_or(0);
         c.show_islamic_events = controls::checked(self.item(ID_SHOWEVENTS));
@@ -1045,6 +1050,10 @@ impl Dialog {
                     let v = controls::checked(self.item(ID_SHOWUSAGE));
                     self.live(|c| c.show_data_usage = v);
                     self.sync_enabled();
+                }
+                ID_TRACKWORK => {
+                    let v = controls::checked(self.item(ID_TRACKWORK));
+                    self.live(|c| c.track_work_hours = v);
                 }
                 _ => {}
             }

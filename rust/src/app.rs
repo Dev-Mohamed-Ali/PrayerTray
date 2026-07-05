@@ -14,6 +14,7 @@ use crate::services::{audio, toast, update};
 use crate::services::data_usage::{self, DataUsage};
 use crate::services::latency::{self, Latency};
 use crate::services::net_speed::{self, NetSpeed};
+use crate::services::work_clock::{self, WorkClock};
 use crate::services::location::DetectedLocation;
 use crate::ui::icon::{TrayIcon, WM_TRAY};
 use crate::ui::popup::{Popup, Row, WM_POPUP_MOVED, WM_POPUP_PIN};
@@ -45,6 +46,8 @@ const CMD_STOP_SOUND: usize = 1005;
 const CMD_CHECK_UPDATES: usize = 1006;
 const CMD_DATA_USAGE: usize = 1007;
 const CMD_EXIT: usize = 1008;
+const CMD_WORK_TOGGLE: usize = 1009;
+const CMD_WORK_HOURS: usize = 1010;
 
 /// Update-check result; lparam = Box<Option<UpdateInfo>> raw.
 const WM_UPDATE_RESULT: u32 = windows::Win32::UI::WindowsAndMessaging::WM_APP + 6;
@@ -107,6 +110,8 @@ pub struct App {
     latency: Latency,
     data_usage: DataUsage,
     usage_open: bool,
+    work_clock: WorkClock,
+    work_open: bool,
 }
 
 impl App {
@@ -141,6 +146,8 @@ impl App {
             latency: Latency::new(),
             data_usage: DataUsage::new(),
             usage_open: false,
+            work_clock: WorkClock::new(),
+            work_open: false,
         });
         let app = Box::leak(app); // lives for the process; freed by the OS at exit
 
@@ -166,6 +173,7 @@ impl App {
 
         app.recompute();
         app.data_usage.load();
+        app.work_clock.load();
         app.apply_net_config();
         app.data_tick();
         if app.cfg.popup_pinned {
@@ -258,14 +266,18 @@ impl App {
         // One adapter snapshot feeds both the usage accumulator and the live meters.
         let tracking = self.cfg.track_data_usage;
         let meters = self.has_pill_meters();
-        if tracking || meters {
-            let rows = net::snapshot();
-            if tracking {
-                self.data_usage.tick(&rows);
-            }
-            if meters {
-                self.update_net_segments(&rows);
-            }
+        let work_active = self.cfg.track_work_hours && self.work_clock.is_active();
+        if work_active {
+            self.work_clock.tick();
+        }
+        let rows = if tracking || meters { net::snapshot() } else { Vec::new() };
+        if tracking {
+            self.data_usage.tick(&rows);
+        }
+        if meters || work_active {
+            self.update_net_segments(&rows);
+        } else if let Some(w) = &mut self.widget {
+            w.set_net(Vec::new()); // clears the tail after End work / meters off (idempotent)
         }
         if let Some(at) = self.next_at {
             let s = at - abs_now();
@@ -289,8 +301,11 @@ impl App {
         let iface = self.cfg.net_interface_id.as_deref();
         self.net_speed.set_interface(iface);
         self.data_usage.set_interface(iface);
+        let work_active = self.cfg.track_work_hours && self.work_clock.is_active();
         if !self.has_pill_meters() {
-            if let Some(w) = &mut self.widget {
+            if work_active {
+                self.update_net_segments(&[]); // rebuild to a work-only tail, no stale meters
+            } else if let Some(w) = &mut self.widget {
                 w.set_net(Vec::new());
             }
         }
@@ -317,6 +332,10 @@ impl App {
                 if compact { "Σ 888 MB" } else { "Σ 8.88 GB" }.into(),
             ));
         }
+        if self.cfg.track_work_hours && self.work_clock.is_active() {
+            let secs = self.work_clock.today();
+            segs.push((format!("⏱ {}", work_clock::fmt_clock(secs)), "⏱ 88:88".into()));
+        }
         if let Some(w) = &mut self.widget {
             w.set_net(segs);
         }
@@ -341,6 +360,25 @@ impl App {
         }
         self.data_tick();
         self.usage_open = false;
+    }
+
+    fn show_work_hours(&mut self) {
+        if self.work_open {
+            return;
+        }
+        self.work_open = true;
+        unsafe {
+            let _ = KillTimer(Some(self.hwnd), TIMER_POS);
+            let _ = KillTimer(Some(self.hwnd), TIMER_DATA);
+        }
+        let clock: *mut WorkClock = &mut self.work_clock;
+        crate::ui::work::show(self.hwnd, clock);
+        unsafe {
+            SetTimer(Some(self.hwnd), TIMER_POS, 1_000, None);
+            SetTimer(Some(self.hwnd), TIMER_DATA, 15_000, None);
+        }
+        self.data_tick();
+        self.work_open = false;
     }
 
     fn time_of(&self, key: &str) -> Option<u16> {
@@ -607,6 +645,11 @@ impl App {
     }
 
     fn show_menu(&mut self) {
+        // A modal dialog runs its own message loop that still dispatches tray clicks; suppress the
+        // menu so it can't toggle/teardown state the open dialog is displaying.
+        if self.settings_open || self.usage_open || self.work_open {
+            return;
+        }
         unsafe {
             let Ok(menu) = CreatePopupMenu() else { return };
             let add = |flags, id: usize, text: &str| {
@@ -625,6 +668,15 @@ impl App {
             add(MF_STRING, CMD_STOP_SOUND, i18n::t("menu.stopSound"));
             add(MF_STRING, CMD_CHECK_UPDATES, i18n::t("menu.checkUpdates"));
             add(MF_STRING, CMD_DATA_USAGE, i18n::t("menu.dataUsage"));
+            if self.cfg.track_work_hours {
+                let label = if self.work_clock.is_active() {
+                    i18n::f("menu.endWork", &[&work_clock::fmt_hm(self.work_clock.today())])
+                } else {
+                    i18n::t("menu.startWork").to_string()
+                };
+                add(MF_STRING, CMD_WORK_TOGGLE, &label);
+                add(MF_STRING, CMD_WORK_HOURS, i18n::t("menu.workHours"));
+            }
             add(MF_SEPARATOR, 0, "");
             add(MF_STRING, CMD_EXIT, i18n::t("menu.exit"));
 
@@ -711,6 +763,11 @@ impl App {
         } else {
             String::new()
         };
+        let work = if self.cfg.track_work_hours {
+            i18n::f("work.today", &[&work_clock::fmt_hm(self.work_clock.today())])
+        } else {
+            String::new()
+        };
         let shown = Self::shown_countdown(&countdown);
         let (rect, anchor_right) = self
             .widget
@@ -719,7 +776,7 @@ impl App {
             .unwrap_or_default();
         let city = self.cfg.city.clone();
         if let Some(p) = &mut self.popup {
-            p.show_times(&city, today, rows, &shown, rect, anchor_right, &hijri, &event, &fast, &usage, &chip);
+            p.show_times(&city, today, rows, &shown, rect, anchor_right, &hijri, &event, &fast, &usage, &work, &chip);
         }
     }
 
@@ -777,6 +834,8 @@ impl App {
             CMD_STOP_SOUND => audio::stop(),
             CMD_CHECK_UPDATES => self.check_updates(),
             CMD_DATA_USAGE => self.show_data_usage(),
+            CMD_WORK_TOGGLE => self.work_clock.toggle(),
+            CMD_WORK_HOURS => self.show_work_hours(),
             CMD_EXIT => self.exit(),
             _ => {}
         }
@@ -962,6 +1021,7 @@ impl App {
     fn exit(&mut self) {
         audio::stop();
         self.data_usage.flush();
+        self.work_clock.flush();
         unsafe {
             let _ = KillTimer(Some(self.hwnd), TIMER_POS);
             let _ = KillTimer(Some(self.hwnd), TIMER_DATA);
