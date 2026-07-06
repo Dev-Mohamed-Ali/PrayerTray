@@ -63,6 +63,10 @@ pub struct Widget {
     count: String,
     segs: Vec<(String, String)>, // (live text, worst-case template) per tail segment
     seg_slots: Vec<i32>,         // grow-only slot width per segment
+    count_slot: i32,             // grow-only reserved countdown width (re-seeds on mode/basis change)
+    count_tmpl_key: String,      // identity of the templates currently seeding count_slot
+    count_tmpls: Vec<String>,    // worst-case countdown templates for the current mode
+    ref_digit: Option<char>,     // widest digit for the current basis (measured, not assumed)
     net_font_scale: f32,         // slot basis: cleared when this or the family changes
     net_family: String,
     hover: bool,
@@ -102,6 +106,10 @@ impl Widget {
             count: "…".into(),
             segs: Vec::new(),
             seg_slots: Vec::new(),
+            count_slot: 0,
+            count_tmpl_key: String::new(),
+            count_tmpls: vec!["88:88".into()],
+            ref_digit: None,
             net_font_scale: 0.0,
             net_family: String::new(),
             hover: false,
@@ -188,10 +196,74 @@ impl Widget {
         Graphics::from_bitmap(&self.measure_bmp).measure_string(s, font).0
     }
 
-    pub fn set_data(&mut self, name: &str, time: &str, countdown: &str) {
+    /// Widest of '0'..'9' in `font` (measured, cached per basis). Substituting it for every digit
+    /// makes equal-length countdowns measure identically (kills ±1px jitter) and upper-bounds width.
+    fn ref_digit(&mut self, font: &Font) -> char {
+        if let Some(c) = self.ref_digit {
+            return c;
+        }
+        let (mut best, mut best_w) = ('0', 0.0f32);
+        for d in '0'..='9' {
+            let w = self.measure(&d.to_string(), font);
+            if w > best_w {
+                best_w = w;
+                best = d;
+            }
+        }
+        self.ref_digit = Some(best);
+        best
+    }
+
+    fn norm_digits(&mut self, s: &str, font: &Font) -> String {
+        let r = self.ref_digit(font);
+        s.chars().map(|c| if c.is_ascii_digit() { r } else { c }).collect()
+    }
+
+    /// Grow-only reserved countdown width. Seeded from the current mode's worst-case templates;
+    /// re-seeds only when the mode/language (template set) or font/DPI basis changes.
+    fn count_width(&mut self, f_count: &Font) -> i32 {
+        let key = self.count_tmpls.join("\u{1}");
+        if self.count_slot == 0 || self.count_tmpl_key != key {
+            self.count_tmpl_key = key;
+            let tmpls = self.count_tmpls.clone();
+            self.count_slot = tmpls
+                .iter()
+                .map(|t| {
+                    let n = self.norm_digits(t, f_count);
+                    self.measure(&n, f_count).ceil() as i32
+                })
+                .max()
+                .unwrap_or(0);
+        }
+        let live = self.norm_digits(&self.count.clone(), f_count);
+        let w = self.measure(&live, f_count).ceil() as i32;
+        if w > self.count_slot {
+            self.count_slot = w; // safety clamp; no-op when templates are true worst-case
+        }
+        self.count_slot
+    }
+
+    fn reset_slots(&mut self) {
+        self.seg_slots.iter_mut().for_each(|s| *s = 0);
+        self.count_slot = 0;
+        self.count_tmpl_key.clear();
+        self.ref_digit = None;
+    }
+
+    /// Reset all grow-only slots when the font/DPI basis changes. Idempotent within a tick.
+    fn refresh_slot_basis(&mut self) {
+        if theme::font_scale() != self.net_font_scale || theme::family() != self.net_family {
+            self.net_font_scale = theme::font_scale();
+            self.net_family = theme::family();
+            self.reset_slots();
+        }
+    }
+
+    pub fn set_data(&mut self, name: &str, time: &str, countdown: &str, count_tmpls: &[&str]) {
         self.name = name.into();
         self.time = time.into();
         self.count = countdown.into();
+        self.count_tmpls = count_tmpls.iter().map(|s| s.to_string()).collect();
         self.resize_to_content();
         self.render_buffer();
         self.invalidate();
@@ -241,18 +313,14 @@ impl Widget {
         if self.segs.is_empty() {
             return 0;
         }
-        if theme::font_scale() != self.net_font_scale || theme::family() != self.net_family {
-            self.net_font_scale = theme::font_scale();
-            self.net_family = theme::family();
-            self.seg_slots.iter_mut().for_each(|s| *s = 0);
-        }
+        self.refresh_slot_basis();
         let mut total = 0;
         for i in 0..self.segs.len() {
             if self.seg_slots[i] == 0 {
-                let tmpl = self.segs[i].1.clone();
+                let tmpl = self.norm_digits(&self.segs[i].1.clone(), f_main);
                 self.seg_slots[i] = self.measure(&tmpl, f_main).ceil() as i32;
             }
-            let text = self.segs[i].0.clone();
+            let text = self.norm_digits(&self.segs[i].0.clone(), f_main);
             let w = self.measure(&text, f_main).ceil() as i32;
             if w > self.seg_slots[i] {
                 self.seg_slots[i] = w;
@@ -263,10 +331,11 @@ impl Widget {
     }
 
     fn resize_to_content(&mut self) {
+        self.refresh_slot_basis(); // reset count slot on font change even with an empty tail
         let f_main = self.main_font();
         let f_count = self.count_font();
         let w_left = self.measure(&self.left_text(), &f_main).ceil() as i32;
-        let w_count = self.measure(&self.count, &f_count).ceil() as i32;
+        let w_count = self.count_width(&f_count);
         let w_net = self.net_width(&f_main);
         // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
         let tail = self.s(8.0)
@@ -361,7 +430,7 @@ impl Widget {
             self.scale = 1.0;
         }
         if self.scale != prev_scale {
-            self.seg_slots.iter_mut().for_each(|s| *s = 0); // slots are DPI-dependent too
+            self.reset_slots(); // slots are DPI-dependent too
             self.resize_to_content();
             self.render_buffer();
             self.invalidate();
