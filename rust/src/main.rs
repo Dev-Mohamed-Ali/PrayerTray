@@ -9,10 +9,8 @@ use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONWARNING, MB_OK
 
 fn main() {
     // Single instance: mutex held for the process lifetime (self-update releases it explicitly).
-    // A release build ALWAYS uses the shared name, so a shipped exe can never run twice — there is
-    // no environment escape hatch. Only debug builds get a separate name, so `cargo run` can sit
-    // beside an installed release during development.
-    let mutex_name = if cfg!(debug_assertions) {
+    // Dev builds can run beside a release via PRAYERTRAY_DEV_MUTEX=1.
+    let mutex_name = if std::env::var_os("PRAYERTRAY_DEV_MUTEX").is_some() {
         w!("PrayerTray.SingleInstance.Dev")
     } else {
         w!("PrayerTray.SingleInstance")
