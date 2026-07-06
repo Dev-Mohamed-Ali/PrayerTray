@@ -63,9 +63,6 @@ pub struct Widget {
     count: String,
     segs: Vec<(String, String)>, // (live text, worst-case template) per tail segment
     seg_slots: Vec<i32>,         // grow-only slot width per segment
-    count_slot: i32,             // grow-only reserved countdown width (re-seeds on mode/basis change)
-    count_tmpl_key: String,      // identity of the templates currently seeding count_slot
-    count_tmpls: Vec<String>,    // worst-case countdown templates for the current mode
     ref_digit: Option<char>,     // widest digit for the current basis (measured, not assumed)
     net_font_scale: f32,         // slot basis: cleared when this or the family changes
     net_family: String,
@@ -106,9 +103,6 @@ impl Widget {
             count: "…".into(),
             segs: Vec::new(),
             seg_slots: Vec::new(),
-            count_slot: 0,
-            count_tmpl_key: String::new(),
-            count_tmpls: vec!["88:88".into()],
             ref_digit: None,
             net_font_scale: 0.0,
             net_family: String::new(),
@@ -219,34 +213,8 @@ impl Widget {
         s.chars().map(|c| if c.is_ascii_digit() { r } else { c }).collect()
     }
 
-    /// Grow-only reserved countdown width. Seeded from the current mode's worst-case templates;
-    /// re-seeds only when the mode/language (template set) or font/DPI basis changes.
-    fn count_width(&mut self, f_count: &Font) -> i32 {
-        let key = self.count_tmpls.join("\u{1}");
-        if self.count_slot == 0 || self.count_tmpl_key != key {
-            self.count_tmpl_key = key;
-            let tmpls = self.count_tmpls.clone();
-            self.count_slot = tmpls
-                .iter()
-                .map(|t| {
-                    let n = self.norm_digits(t, f_count);
-                    self.measure(&n, f_count).ceil() as i32
-                })
-                .max()
-                .unwrap_or(0);
-        }
-        let live = self.norm_digits(&self.count.clone(), f_count);
-        let w = self.measure(&live, f_count).ceil() as i32;
-        if w > self.count_slot {
-            self.count_slot = w; // safety clamp; no-op when templates are true worst-case
-        }
-        self.count_slot
-    }
-
     fn reset_slots(&mut self) {
         self.seg_slots.iter_mut().for_each(|s| *s = 0);
-        self.count_slot = 0;
-        self.count_tmpl_key.clear();
         self.ref_digit = None;
     }
 
@@ -259,11 +227,10 @@ impl Widget {
         }
     }
 
-    pub fn set_data(&mut self, name: &str, time: &str, countdown: &str, count_tmpls: &[&str]) {
+    pub fn set_data(&mut self, name: &str, time: &str, countdown: &str) {
         self.name = name.into();
         self.time = time.into();
         self.count = countdown.into();
-        self.count_tmpls = count_tmpls.iter().map(|s| s.to_string()).collect();
         self.resize_to_content();
         self.render_buffer();
         self.invalidate();
@@ -317,10 +284,10 @@ impl Widget {
         let mut total = 0;
         for i in 0..self.segs.len() {
             if self.seg_slots[i] == 0 {
-                let tmpl = self.norm_digits(&self.segs[i].1.clone(), f_main);
+                let tmpl = self.segs[i].1.clone();
                 self.seg_slots[i] = self.measure(&tmpl, f_main).ceil() as i32;
             }
-            let text = self.norm_digits(&self.segs[i].0.clone(), f_main);
+            let text = self.segs[i].0.clone();
             let w = self.measure(&text, f_main).ceil() as i32;
             if w > self.seg_slots[i] {
                 self.seg_slots[i] = w;
@@ -335,7 +302,10 @@ impl Widget {
         let f_main = self.main_font();
         let f_count = self.count_font();
         let w_left = self.measure(&self.left_text(), &f_main).ceil() as i32;
-        let w_count = self.count_width(&f_count);
+        // Digit-normalized so equal-length countdowns measure identically (no per-second ±1px
+        // jitter); width still tracks the current text, so no reserved gap after short values.
+        let count_norm = self.norm_digits(&self.count.clone(), &f_count);
+        let w_count = self.measure(&count_norm, &f_count).ceil() as i32;
         let w_net = self.net_width(&f_main);
         // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
         let tail = self.s(8.0)

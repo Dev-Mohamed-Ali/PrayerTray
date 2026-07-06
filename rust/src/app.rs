@@ -313,22 +313,24 @@ impl App {
 
     /// Build the up-to-4 tail segments (down, up, ping, usage) with worst-case templates.
     fn update_net_segments(&mut self, rows: &[net::IfRow]) {
+        let compact = self.cfg.compact_meters;
         let mut segs: Vec<(String, String)> = Vec::with_capacity(4);
         if self.cfg.show_net_speed {
             let (down, up) = self.net_speed.sample(rows);
             let (d, u) = net_speed::format_parts(down, up);
-            // rate() can emit 4 digits ("1023 KB/s"); 'M' is the widest unit letter. Digits are
-            // normalized before measuring, so these templates only bound glyph-count + unit text.
-            segs.push((d, "↓ 8888 MB/s".into()));
-            segs.push((u, "↑ 8888 MB/s".into()));
+            segs.push((d, if compact { "↓ 8.8 MB/s" } else { "↓ 88.8 MB/s" }.into()));
+            segs.push((u, if compact { "↑ 8.8 MB/s" } else { "↑ 88.8 MB/s" }.into()));
         }
         if self.cfg.show_ping {
             let ms = self.latency.sample();
-            segs.push((latency::format(ms), "888 ms".into()));
+            segs.push((latency::format(ms), if compact { "88 ms" } else { "888 ms" }.into()));
         }
         if self.cfg.track_data_usage && self.cfg.show_data_usage {
             let (rx, tx) = self.data_usage.today();
-            segs.push((format!("Σ {}", data_usage::size(rx + tx)), "Σ 8888 MB".into()));
+            segs.push((
+                format!("Σ {}", data_usage::size(rx + tx)),
+                if compact { "Σ 888 MB" } else { "Σ 8.88 GB" }.into(),
+            ));
         }
         if self.cfg.track_work_hours && self.work_clock.is_active() {
             let secs = self.work_clock.today();
@@ -492,18 +494,8 @@ impl App {
             tray.set_tooltip(&tip);
         }
         let shown = Self::shown_countdown(&countdown);
-        // Reserve the countdown slot from the current mode's worst case: a 2-digit-hour clock
-        // ("88:88", countdown is always <24h) or the localized "now" word (may be longer), and the
-        // "Iqamah " prefix only while in the iqamah window — so the pill width is fixed per mode.
-        let iq_tmpl;
-        let count_tmpls: Vec<&str> = if countdown.starts_with("iq|") {
-            iq_tmpl = format!("{} 88:88", i18n::t("label.iqamah"));
-            vec![iq_tmpl.as_str()]
-        } else {
-            vec!["88:88", i18n::t("countdown.now")]
-        };
         if let Some(w) = &mut self.widget {
-            w.set_data(label, &time_str, &shown, &count_tmpls);
+            w.set_data(label, &time_str, &shown);
         }
         if self.popup.as_ref().map(|p| p.visible()).unwrap_or(false) {
             self.show_popup();
