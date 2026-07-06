@@ -153,7 +153,11 @@ struct Dialog {
     font: HFONT,
     font_title: HFONT,
     pages: Vec<Vec<HWND>>,
-    dim: Vec<HWND>,
+    dim: Vec<HWND>,          // permanently-dim labels (section subheadings)
+    dim_dyn: Vec<HWND>,      // labels dimmed because their field is currently disabled
+    edits: Vec<HWND>,        // every edit control (read-only ones dim via WM_CTLCOLORSTATIC)
+    checks: Vec<HWND>,       // owner-drawn checkboxes (routed to draw_checkbox / toggle)
+    labeled: Vec<(i32, HWND)>, // (disable-able field id, its label) so labels dim in lockstep
     titles: Vec<String>,
     monitors: Vec<Monitor>,
     fonts: Vec<String>,
@@ -185,6 +189,10 @@ pub fn run(host: &mut dyn SettingsHost, snapshot: &AppConfig, prefill: Option<&D
         font_title: HFONT::default(),
         pages: (0..PAGES).map(|_| Vec::new()).collect(),
         dim: Vec::new(),
+        dim_dyn: Vec::new(),
+        edits: Vec::new(),
+        checks: Vec::new(),
+        labeled: Vec::new(),
         titles: ["card.location", "card.calculation", "card.appearance", "card.network", "card.religious", "card.notifications"]
             .iter()
             .map(|k| i18n::t(k).to_string())
@@ -331,6 +339,7 @@ impl Dialog {
         let h = controls::edit(self.hwnd, "", self.s(x), self.s(y), self.s(w), self.s(CTRL_H), id);
         controls::set_font(h, self.font);
         self.pages[page].push(h);
+        self.edits.push(h);
         h
     }
 
@@ -345,7 +354,14 @@ impl Dialog {
         let h = controls::checkbox(self.hwnd, text, self.s(x), self.s(y + 2), self.s(w), self.s(20), id);
         controls::set_font(h, self.font);
         self.pages[page].push(h);
+        self.checks.push(h);
         h
+    }
+
+    /// A field label paired to its control id, so the label dims when the field is disabled.
+    fn lbl_for(&mut self, page: usize, id: i32, text: &str, x: i32, y: i32, w: i32) {
+        let h = self.lbl(page, text, x, y, w, false);
+        self.labeled.push((id, h));
     }
 
     fn btn_at(&mut self, page: Option<usize>, id: i32, text: &str, x: i32, y: i32, w: i32, h: i32) -> HWND {
@@ -477,12 +493,12 @@ impl Dialog {
         y += ROW_H;
         self.check_at(3, ID_PING, i18n::t("chk.ping"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl(3, i18n::t("label.pingHost"), LBL_X, y, LABEL_W, false);
+        self.lbl_for(3, ID_PINGHOST, i18n::t("label.pingHost"), LBL_X, y, LABEL_W);
         self.edit_at(3, ID_PINGHOST, CTRL_X, y, 200);
         y += ROW_H;
         self.check_at(3, ID_PINGTCP, i18n::t("chk.pingTcp"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl(3, i18n::t("label.netInterface"), LBL_X, y, LABEL_W, false);
+        self.lbl_for(3, ID_NETIFACE, i18n::t("label.netInterface"), LBL_X, y, LABEL_W);
         let iface = self.combo_at(3, ID_NETIFACE, CTRL_X, y, 268);
         self.iface_ids.push(String::new());
         controls::combo_add(iface, i18n::t("iface.all"));
@@ -501,7 +517,7 @@ impl Dialog {
         let mut y = Y0;
         self.check_at(4, ID_SHOWHIJRI, i18n::t("chk.showHijri"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl(4, i18n::t("label.hijriAdjust"), LBL_X, y, LABEL_W, false);
+        self.lbl_for(4, ID_HIJRIADJ, i18n::t("label.hijriAdjust"), LBL_X, y, LABEL_W);
         self.edit_at(4, ID_HIJRIADJ, CTRL_X, y, 60);
         y += ROW_H;
         self.check_at(4, ID_SHOWEVENTS, i18n::t("chk.showEvents"), LBL_X, y, 380);
@@ -517,19 +533,19 @@ impl Dialog {
         y += ROW_H;
         self.check_at(5, ID_REMENABLE, i18n::t("chk.remind"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl(5, i18n::t("label.minutesBefore"), LBL_X, y, LABEL_W, false);
+        self.lbl_for(5, ID_REMMINS, i18n::t("label.minutesBefore"), LBL_X, y, LABEL_W);
         self.edit_at(5, ID_REMMINS, CTRL_X, y, 60);
         y += ROW_H;
         self.check_at(5, ID_REMSOUND, i18n::t("chk.playSound"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl(5, i18n::t("label.sound"), LBL_X, y, LABEL_W, false);
+        self.lbl_for(5, ID_REMSOUNDCB, i18n::t("label.sound"), LBL_X, y, LABEL_W);
         let rs = self.combo_at(5, ID_REMSOUNDCB, CTRL_X, y, 200);
         for (id, _) in audio::REMINDER_SOUNDS {
             controls::combo_add(rs, i18n::t(&format!("sound.{id}")));
         }
         controls::combo_add(rs, i18n::t("combo.customFile"));
         y += ROW_H;
-        self.lbl(5, i18n::t("label.customFile"), LBL_X, y, LABEL_W, false);
+        self.lbl_for(5, ID_REMFILE, i18n::t("label.customFile"), LBL_X, y, LABEL_W);
         let rf = self.edit_at(5, ID_REMFILE, CTRL_X, y, 160);
         controls::cue_banner(rf, i18n::t("ph.customFile"));
         self.btn_at(Some(5), ID_REMBROWSE, "…", CTRL_X + 164, y, 28, CTRL_H);
@@ -543,7 +559,7 @@ impl Dialog {
         }
         controls::combo_add(az, i18n::t("combo.customFile"));
         y += ROW_H;
-        self.lbl(5, i18n::t("label.azanFile"), LBL_X, y, LABEL_W, false);
+        self.lbl_for(5, ID_AZANFILE, i18n::t("label.azanFile"), LBL_X, y, LABEL_W);
         let af = self.edit_at(5, ID_AZANFILE, CTRL_X, y, 160);
         controls::cue_banner(af, ".mp3 / .wav");
         self.btn_at(Some(5), ID_AZANBROWSE, "…", CTRL_X + 164, y, 28, CTRL_H);
@@ -750,32 +766,60 @@ impl Dialog {
     }
 
     fn sync_enabled(&mut self) {
+        // Edits soft-disable via read-only (keeps our WM_CTLCOLORSTATIC color); everything else via
+        // EnableWindow. Labels dim in lockstep through `dim_dyn` (see the states table below).
         let rem = controls::checked(self.item(ID_REMENABLE));
-        controls::enable(self.item(ID_REMMINS), rem);
+        controls::set_readonly(self.item(ID_REMMINS), !rem);
         controls::enable(self.item(ID_REMSOUND), rem);
         let snd = rem && controls::checked(self.item(ID_REMSOUND));
         controls::enable(self.item(ID_REMSOUNDCB), snd);
         let sel = controls::combo_sel(self.item(ID_REMSOUNDCB)).max(0) as usize;
         let custom = snd && self.rem_ids.get(sel).copied() == Some("custom");
-        controls::enable(self.item(ID_REMFILE), custom);
+        controls::set_readonly(self.item(ID_REMFILE), !custom);
         controls::enable(self.item(ID_REMBROWSE), custom);
         controls::enable(self.item(ID_REMTEST), snd);
         let asel = controls::combo_sel(self.item(ID_AZAN)).max(0) as usize;
         let amode = self.azan_ids.get(asel).map(String::as_str).unwrap_or("None");
-        controls::enable(self.item(ID_AZANFILE), amode == "Custom");
-        controls::enable(self.item(ID_AZANBROWSE), amode == "Custom");
+        let azan_custom = amode == "Custom";
+        controls::set_readonly(self.item(ID_AZANFILE), !azan_custom);
+        controls::enable(self.item(ID_AZANBROWSE), azan_custom);
         controls::enable(self.item(ID_AZANTEST), amode != "None");
-        controls::enable(self.item(ID_HIJRIADJ), controls::checked(self.item(ID_SHOWHIJRI)));
+        let show_hijri = controls::checked(self.item(ID_SHOWHIJRI));
+        controls::set_readonly(self.item(ID_HIJRIADJ), !show_hijri);
 
         let netspeed = controls::checked(self.item(ID_NETSPEED));
         let ping = controls::checked(self.item(ID_PING));
         let track = controls::checked(self.item(ID_TRACKUSAGE));
         let show_usage = controls::checked(self.item(ID_SHOWUSAGE));
-        controls::enable(self.item(ID_PINGHOST), ping);
+        let iface_on = netspeed || ping || track;
+        controls::set_readonly(self.item(ID_PINGHOST), !ping);
         controls::enable(self.item(ID_PINGTCP), ping);
-        controls::enable(self.item(ID_NETIFACE), netspeed || ping || track);
+        controls::enable(self.item(ID_NETIFACE), iface_on);
         controls::enable(self.item(ID_SHOWUSAGE), track);
         controls::enable(self.item(ID_COMPACT), netspeed || ping || (track && show_usage));
+
+        let states = [
+            (ID_PINGHOST, ping),
+            (ID_NETIFACE, iface_on),
+            (ID_HIJRIADJ, show_hijri),
+            (ID_REMMINS, rem),
+            (ID_REMSOUNDCB, snd),
+            (ID_REMFILE, custom),
+            (ID_AZANFILE, azan_custom),
+        ];
+        self.dim_dyn.clear();
+        for (id, on) in states {
+            if !on {
+                if let Some(&(_, h)) = self.labeled.iter().find(|(fid, _)| *fid == id) {
+                    self.dim_dyn.push(h);
+                }
+            }
+        }
+        for &(_, h) in &self.labeled {
+            unsafe {
+                let _ = InvalidateRect(Some(h), None, false);
+            }
+        }
     }
 
     fn select_section(&mut self, idx: usize) {
@@ -966,6 +1010,12 @@ impl Dialog {
 
     fn on_command(&mut self, id: i32, code: u32) {
         if code == BN_CLICKED {
+            // Owner-drawn checkboxes don't auto-toggle; flip our stored state before the handlers
+            // (which read controls::checked) run. Push buttons aren't in `checks`, so they're skipped.
+            let h = self.item(id);
+            if self.checks.contains(&h) {
+                controls::toggle_check(h);
+            }
             match id {
                 ID_SAVE => self.on_save(),
                 ID_CANCEL => self.finish(SettingsResult::Cancel),
@@ -1263,7 +1313,14 @@ impl WindowHandler for Dialog {
                 let p = theme::current();
                 let hdc = windows::Win32::Graphics::Gdi::HDC(wparam.0 as *mut _);
                 let child = HWND(lparam.0 as *mut _);
-                let text = if self.dim.contains(&child) { p.text_dim } else { p.text };
+                // A read-only edit sends WM_CTLCOLORSTATIC (editable ones use WM_CTLCOLOREDIT), so any
+                // tracked edit landing here is read-only -> field background + readable dim text.
+                if self.edits.contains(&child) {
+                    let brush = controls::ctl_colors(hdc, p.text_dim, p.bg_hover, self.brushes.field);
+                    return Some(LRESULT(brush.0 as isize));
+                }
+                let dim = self.dim.contains(&child) || self.dim_dyn.contains(&child);
+                let text = if dim { p.text_dim } else { p.text };
                 let brush = controls::ctl_colors(hdc, text, p.panel, self.brushes.panel);
                 Some(LRESULT(brush.0 as isize))
             }
@@ -1274,7 +1331,18 @@ impl WindowHandler for Dialog {
                 Some(LRESULT(brush.0 as isize))
             }
             WM_DRAWITEM => {
+                const ODT_COMBOBOX: u32 = 3; // winuser.h; not surfaced by the windows crate
                 let dis = unsafe { &*(lparam.0 as *const DRAWITEMSTRUCT) };
+                if dis.CtlType.0 == ODT_COMBOBOX {
+                    controls::draw_combo(dis, self.font, i18n::is_rtl());
+                    return Some(LRESULT(1));
+                }
+                if self.checks.contains(&dis.hwndItem) {
+                    let text = controls::get_text(dis.hwndItem);
+                    let on = controls::checked(dis.hwndItem);
+                    controls::draw_checkbox(dis, &text, self.font, on, i18n::is_rtl());
+                    return Some(LRESULT(1));
+                }
                 let id = dis.CtlID as i32;
                 let kind = if (ID_NAV_BASE..ID_NAV_BASE + PAGES as i32).contains(&id) {
                     if (id - ID_NAV_BASE) as usize == self.page {
