@@ -4,14 +4,13 @@
 use crate::ui::theme;
 use crate::ui::window;
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, RECT, WPARAM};
+use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    CreateFontW, CreateSolidBrush, DeleteObject, DrawFrameControl, DrawTextW, EnumFontFamiliesExW,
-    FillRect, GetDC, InvalidateRect, ReleaseDC, SelectObject, SetBkMode, SetTextColor,
-    CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_QUALITY, DFC_BUTTON, DFCS_BUTTONCHECK,
-    DFCS_CHECKED, DFCS_INACTIVE, DT_CENTER, DT_END_ELLIPSIS, DT_LEFT, DT_RIGHT, DT_SINGLELINE,
-    DT_VCENTER, FF_DONTCARE, FW_BOLD, FW_NORMAL, HBRUSH, HDC, HFONT, LOGFONTW, OUT_DEFAULT_PRECIS,
-    TEXTMETRICW, TRANSPARENT,
+    CreateFontW, CreatePen, CreateSolidBrush, DeleteObject, DrawTextW, EnumFontFamiliesExW,
+    FillRect, GetDC, InvalidateRect, Polyline, ReleaseDC, RoundRect, SelectObject, SetBkMode,
+    SetTextColor, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_QUALITY, DT_CENTER, DT_END_ELLIPSIS,
+    DT_LEFT, DT_RIGHT, DT_SINGLELINE, DT_VCENTER, FF_DONTCARE, FW_BOLD, FW_NORMAL, HBRUSH, HDC,
+    HFONT, LOGFONTW, OUT_DEFAULT_PRECIS, PS_SOLID, TEXTMETRICW, TRANSPARENT,
 };
 use windows::Win32::UI::Controls::{
     SetWindowTheme, DRAWITEMSTRUCT, ODS_COMBOBOXEDIT, ODS_DISABLED, ODS_SELECTED,
@@ -347,40 +346,60 @@ pub fn draw_combo(dis: &DRAWITEMSTRUCT, font: HFONT, rtl: bool) {
     }
 }
 
-/// WM_DRAWITEM painter for owner-drawn checkboxes: classic glyph (DrawFrameControl) + label whose
-/// color follows enabled/disabled, so disabled text stays readable (`text_dim`) not system grey.
+/// WM_DRAWITEM painter for owner-drawn checkboxes: a flat rounded glyph (accent-filled with a
+/// checkmark when checked, dim outline otherwise) that matches the dark theme, plus a label whose
+/// color follows enabled/disabled so disabled text stays readable (`text_dim`) not system grey.
 pub fn draw_checkbox(dis: &DRAWITEMSTRUCT, text: &str, font: HFONT, is_checked: bool, rtl: bool) {
     let p = theme::current();
     let disabled = (dis.itemState.0 & ODS_DISABLED.0) != 0;
     let rc = dis.rcItem;
     let row_h = rc.bottom - rc.top;
-    let box_sz = (row_h * 13 / 20).max(11);
+    let box_sz = (row_h * 13 / 20).max(12);
     let gap = (row_h / 3).max(4);
     let gy = rc.top + (row_h - box_sz) / 2;
     unsafe {
-        let brush = solid(p.panel);
-        FillRect(dis.hDC, &rc, brush);
-        let _ = DeleteObject(brush.into());
+        let bg = solid(p.panel);
+        FillRect(dis.hDC, &rc, bg);
+        let _ = DeleteObject(bg.into());
 
-        let (gx, tl, tr) = if rtl {
+        let (gx, tl, tx_right) = if rtl {
             (rc.right - box_sz, rc.left, rc.right - box_sz - gap)
         } else {
             (rc.left, rc.left + box_sz + gap, rc.right)
         };
-        let mut gr = RECT { left: gx, top: gy, right: gx + box_sz, bottom: gy + box_sz };
-        let mut state = DFCS_BUTTONCHECK;
+
+        // Rounded box: accent fill when checked (dim outline otherwise); everything dims when disabled.
+        let border = if disabled { p.text_dim } else if is_checked { p.accent } else { p.text_dim };
+        let fill = if is_checked && !disabled { p.accent } else { p.panel };
+        let radius = (box_sz / 4).max(2);
+        let pen = CreatePen(PS_SOLID, (box_sz / 14).max(1), colorref(border));
+        let br = solid(fill);
+        let op = SelectObject(dis.hDC, pen.into());
+        let ob = SelectObject(dis.hDC, br.into());
+        let _ = RoundRect(dis.hDC, gx, gy, gx + box_sz, gy + box_sz, radius * 2, radius * 2);
+        SelectObject(dis.hDC, op);
+        SelectObject(dis.hDC, ob);
+        let _ = DeleteObject(pen.into());
+        let _ = DeleteObject(br.into());
+
         if is_checked {
-            state |= DFCS_CHECKED;
+            let check = if disabled { p.text_dim } else { on_accent(p.accent) };
+            let cpen = CreatePen(PS_SOLID, (box_sz / 8).max(2), colorref(check));
+            let ocp = SelectObject(dis.hDC, cpen.into());
+            let pts = [
+                POINT { x: gx + box_sz * 22 / 100, y: gy + box_sz * 52 / 100 },
+                POINT { x: gx + box_sz * 42 / 100, y: gy + box_sz * 70 / 100 },
+                POINT { x: gx + box_sz * 75 / 100, y: gy + box_sz * 30 / 100 },
+            ];
+            let _ = Polyline(dis.hDC, &pts);
+            SelectObject(dis.hDC, ocp);
+            let _ = DeleteObject(cpen.into());
         }
-        if disabled {
-            state |= DFCS_INACTIVE;
-        }
-        let _ = DrawFrameControl(dis.hDC, &mut gr, DFC_BUTTON, state);
 
         SetBkMode(dis.hDC, TRANSPARENT);
         SetTextColor(dis.hDC, colorref(if disabled { p.text_dim } else { p.text }));
         let old = SelectObject(dis.hDC, font.into());
-        let mut tr = RECT { left: tl, top: rc.top, right: tr, bottom: rc.bottom };
+        let mut tr = RECT { left: tl, top: rc.top, right: tx_right, bottom: rc.bottom };
         let mut wide: Vec<u16> = text.encode_utf16().collect();
         let flags = DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | if rtl { DT_RIGHT } else { DT_LEFT };
         DrawTextW(dis.hDC, &mut wide, &mut tr, flags);
