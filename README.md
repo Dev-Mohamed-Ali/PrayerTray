@@ -65,8 +65,8 @@ cargo test                 # calc fixtures (exact-match vs the C# engine), confi
 Pushing a `vX.Y.Z` tag builds, tests, and drafts a GitHub release via Actions. See
 [`rust/README.md`](rust/README.md) for dev-mode notes and data-regeneration tools.
 
-The original C# (.NET 8 / WinForms) implementation lives in [`legacy-dotnet/`](legacy-dotnet/) as
-the porting reference; it still builds but is no longer released.
+The original C# (.NET 8 / WinForms) implementation was removed after the Rust rewrite; it remains in
+git history at tag [`v1.14.0`](../../releases/tag/v1.14.0).
 
 ## Internals
 

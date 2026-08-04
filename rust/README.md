@@ -2,7 +2,7 @@
 
 Native Win32 rewrite of PrayerTray: one small exe, no .NET runtime, same features,
 same `%APPDATA%\PrayerTray\config.json`. Replaced the C# build at v2.0.0; the C# tree
-lives on in `../legacy-dotnet/`.
+was removed afterwards and lives on in git history at tag `v1.14.0`.
 
 ## Build
 
@@ -14,11 +14,12 @@ cargo test                   # calc fixtures (exact-match vs the C# engine), con
 Dev builds are version `0.0.0` (never self-update) and can run beside an installed
 release: set `PRAYERTRAY_DEV_MUTEX=1`.
 
-## Regenerating ported data
+## Ported data
 
-- `tools/convert_strings.py` — rebuilds `src/i18n/data.rs` from `../legacy-dotnet/I18n/Strings.cs`.
-- `tools/genfix/` — rebuilds calc test fixtures + the Umm al-Qura table from the real
-  .NET implementations (see its README).
+`src/i18n/data.rs`, `src/calc/umalqura_data.rs`, and `tests/data/*.json` were generated from the C#
+tree at port time. The generators went with it — edit these by hand now. The fixtures are frozen
+goldens: they still gate `cargo test`, but a change to them can no longer be checked against the
+original engine (recover it from tag `v1.14.0` if that is ever needed).
 
 ## Deferred to v2.x
 

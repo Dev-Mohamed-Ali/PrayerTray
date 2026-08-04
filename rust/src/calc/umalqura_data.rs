@@ -1,4 +1,4 @@
-// GENERATED from .NET UmAlQuraCalendar by tools/genfix — do not hand-edit.
+// Dumped from .NET UmAlQuraCalendar (1318–1500 AH); the generator is gone — edit by hand.
 // (rd_of_muharram_1, [12 month lengths]) per Hijri year.
 pub const MIN_RD: i64 = 693715; // 1900-04-30
 pub const MAX_RD: i64 = 758564; // 2077-11-16

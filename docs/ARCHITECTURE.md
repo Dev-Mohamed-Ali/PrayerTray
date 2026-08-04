@@ -14,22 +14,22 @@ match. Release profile: `opt-level="z"`, fat LTO, `panic="abort"`, stripped → 
 Prayer times are computed **offline** with the PrayTimes.org algorithm; the network is touched only
 by explicit user actions (location detect, update check).
 
-The original C# implementation lives in `legacy-dotnet/` as the porting reference. It still builds
-(`dotnet build legacy-dotnet/PrayerTray.csproj`) but is no longer released.
+The original C# implementation was the porting reference; it was removed once the port settled and
+lives on in git history at tag `v1.14.0`.
 
 ## Exactness: ported, not re-derived
 
 The port had to produce the *same minutes* users already see, so nothing numeric was re-implemented
 from a paper spec:
 
-- `rust/tools/genfix/` compiles the **actual C# `PrayerTimes.cs`** and dumps 1,920 fixture cases
+- `tests/data/reference_times.json` was dumped from the **actual C# `PrayerTimes.cs`**: 1,920 cases
   (8 cities × 5 methods × Asr rules × high-latitude rules, incl. polar summer) plus 406 Hijri cases;
   `cargo test` exact-matches them.
 - The Umm al-Qura month table (`src/calc/umalqura_data.rs`) is dumped from .NET's
   `UmAlQuraCalendar` (1318–1500 AH), not computed — a generic tabular algorithm would shift dates.
 - C# `Math.Round` is banker's rounding → the Rust side uses `round_ties_even()`.
-- `src/i18n/data.rs` is generated from `legacy-dotnet/I18n/Strings.cs` by
-  `tools/convert_strings.py`. Never hand-edit generated files; rerun the tools.
+- `src/i18n/data.rs` was generated from the C# `Strings.cs`. The generators were removed with the
+  C# tree, so these files (and the fixtures above) are now hand-maintained frozen goldens.
 
 Config compatibility is a hard contract: `%APPDATA%\PrayerTray\config.json`, PascalCase via serde,
 sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). The data-usage store

@@ -1,4 +1,4 @@
-// GENERATED from I18n/Strings.cs by rust/tools/convert_strings.py — do not hand-edit.
+// Ported from the C# I18n/Strings.cs; the generator is gone — edit by hand.
 // Lang order: En Ar Fr Tr Ur Id. Empty slot = fall back to English at runtime.
 
 pub const LANGS: usize = 6;
