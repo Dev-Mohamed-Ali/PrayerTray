@@ -29,12 +29,6 @@ pub struct AppConfig {
     pub asr_adjust: i32,
     pub maghrib_adjust: i32,
     pub isha_adjust: i32,
-    // Per-prayer iqamah offset in minutes (0 = off).
-    pub fajr_iqamah: i32,
-    pub dhuhr_iqamah: i32,
-    pub asr_iqamah: i32,
-    pub maghrib_iqamah: i32,
-    pub isha_iqamah: i32,
     pub use24_hour: bool,
     pub widget_anchor: String, // Left | Right
     pub widget_offset: i32,
@@ -89,11 +83,6 @@ impl Default for AppConfig {
             asr_adjust: 0,
             maghrib_adjust: 0,
             isha_adjust: 0,
-            fajr_iqamah: 0,
-            dhuhr_iqamah: 0,
-            asr_iqamah: 0,
-            maghrib_iqamah: 0,
-            isha_iqamah: 0,
             use24_hour: false,
             widget_anchor: "Right".into(),
             widget_offset: 12,
@@ -150,15 +139,6 @@ impl AppConfig {
             &mut self.isha_adjust,
         ] {
             *a = (*a).clamp(-60, 60);
-        }
-        for a in [
-            &mut self.fajr_iqamah,
-            &mut self.dhuhr_iqamah,
-            &mut self.asr_iqamah,
-            &mut self.maghrib_iqamah,
-            &mut self.isha_iqamah,
-        ] {
-            *a = (*a).clamp(0, 60);
         }
         self.widget_offset = self.widget_offset.clamp(0, 2000);
         self.hijri_adjust = self.hijri_adjust.clamp(-2, 2);
@@ -219,17 +199,6 @@ impl AppConfig {
 
     pub fn asr_juristic(&self) -> AsrJuristic {
         AsrJuristic::from_int(self.asr)
-    }
-
-    pub fn iqamah_of(&self, key: &str) -> i32 {
-        match key {
-            "fajr" => self.fajr_iqamah,
-            "dhuhr" => self.dhuhr_iqamah,
-            "asr" => self.asr_iqamah,
-            "maghrib" => self.maghrib_iqamah,
-            "isha" => self.isha_iqamah,
-            _ => 0,
-        }
     }
 
     pub fn time_adjust(&self) -> Offsets {

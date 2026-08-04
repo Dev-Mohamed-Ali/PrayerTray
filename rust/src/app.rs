@@ -410,7 +410,7 @@ impl App {
     }
 
     /// (key, target abs-seconds, countdown-string) — "now" during the prayer's own minute,
-    /// "iq|…" while counting down to iqamah, else the plain countdown. Port of CurrentOrNext.
+    /// else the plain countdown. Port of CurrentOrNext.
     fn current_or_next(&mut self) -> (Option<&'static str>, Option<i64>, String) {
         self.ensure_today();
         let now = abs_now();
@@ -426,15 +426,6 @@ impl App {
             }
             if now < at + 60 {
                 return (Some(key_static(key)), Some(at), "now".into());
-            }
-            let iq = self.cfg.iqamah_of(key) as i64;
-            if iq > 0 && now < at + iq * 60 {
-                let iq_at = at + iq * 60;
-                return (
-                    Some(key_static(key)),
-                    Some(iq_at),
-                    format!("iq|{}", Self::format_countdown(iq_at - now)),
-                );
             }
         }
         // All done today -> tomorrow's fajr.
@@ -454,12 +445,10 @@ impl App {
         (Some("fajr"), Some(fajr_at), Self::format_countdown(fajr_at - now))
     }
 
-    /// Map internal "now"/"iq|…" sentinels to localized display text.
+    /// Map the internal "now" sentinel to localized display text.
     fn shown_countdown(countdown: &str) -> String {
         if countdown == "now" {
             i18n::t("countdown.now").to_string()
-        } else if let Some(rest) = countdown.strip_prefix("iq|") {
-            format!("{} {}", i18n::t("label.iqamah"), rest)
         } else {
             countdown.to_string()
         }
@@ -478,8 +467,6 @@ impl App {
 
         let tip = if countdown == "now" {
             format!("{} {} {}", i18n::t("tray.now"), label, time_str)
-        } else if countdown.starts_with("iq|") {
-            format!("{} {} · {}", label, time_str, Self::shown_countdown(&countdown))
         } else {
             format!(
                 "{} {} {} ({} {})",
@@ -750,11 +737,6 @@ impl App {
         } else {
             String::new()
         };
-        let chip = if let Some(rest) = countdown.strip_prefix("iq|") {
-            format!("{} {} {}", i18n::t("label.iqamah"), i18n::t("popup.in"), rest)
-        } else {
-            String::new()
-        };
         let event = self.todays_event();
         let fast = self.todays_fast();
         let usage = if self.cfg.track_data_usage {
@@ -776,7 +758,7 @@ impl App {
             .unwrap_or_default();
         let city = self.cfg.city.clone();
         if let Some(p) = &mut self.popup {
-            p.show_times(&city, today, rows, &shown, rect, anchor_right, &hijri, &event, &fast, &usage, &work, &chip);
+            p.show_times(&city, today, rows, &shown, rect, anchor_right, &hijri, &event, &fast, &usage, &work);
         }
     }
 

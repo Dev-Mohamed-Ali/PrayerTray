@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 153] = [
+pub static UI: [(&str, [&str; LANGS]); 151] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -78,8 +78,6 @@ pub static UI: [(&str, [&str; LANGS]); 153] = [
     ("label.fontSize", ["Font size:", "حجم الخط:", "Taille de police :", "Yazı boyutu:", "فونٹ سائز:", "Ukuran font:"]),
     ("label.highLat", ["High latitude:", "خطوط العرض العالية:", "Haute latitude :", "Yüksek enlem:", "بلند عرض البلد:", "Lintang tinggi:"]),
     ("label.hijriAdjust", ["Hijri adjust (days):", "ضبط الهجري (أيام):", "Ajustement hégirien (jours) :", "Hicri düzeltme (gün):", "ہجری ترتیب (دن):", "Penyesuaian Hijriah (hari):"]),
-    ("label.iqamah", ["Iqamah", "الإقامة", "Iqama", "Kamet", "اقامت", "Iqamah"]),
-    ("label.iqamahTune", ["Iqamah after azan (minutes, 0 = off)", "الإقامة بعد الأذان (دقائق، 0 = إيقاف)", "Iqama après l'adhan (minutes, 0 = désactivé)", "Ezandan sonra kamet (dakika, 0 = kapalı)", "اذان کے بعد اقامت (منٹ، 0 = بند)", "Iqamah setelah azan (menit, 0 = nonaktif)"]),
     ("label.language", ["Language:", "اللغة:", "Langue :", "Dil:", "زبان:", "Bahasa:"]),
     ("label.lat", ["Latitude:", "خط العرض:", "Latitude :", "Enlem:", "عرض البلد:", "Lintang:"]),
     ("label.lng", ["Longitude:", "خط الطول:", "Longitude :", "Boylam:", "طول البلد:", "Bujur:"]),

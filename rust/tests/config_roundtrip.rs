@@ -15,11 +15,6 @@ const CSHARP_CONFIG: &str = r#"{
   "AsrAdjust": -2,
   "MaghribAdjust": 0,
   "IshaAdjust": 90,
-  "FajrIqamah": 20,
-  "DhuhrIqamah": 15,
-  "AsrIqamah": 0,
-  "MaghribIqamah": 5,
-  "IshaIqamah": 10,
   "Use24Hour": true,
   "WidgetAnchor": "Left",
   "WidgetOffset": 40,
@@ -64,7 +59,6 @@ fn reads_csharp_config_and_sanitizes() {
     assert_eq!(cfg.method, "Egypt");
     assert_eq!(cfg.asr, 2);
     assert_eq!(cfg.isha_adjust, 60, "sanitize clamps 90 -> 60");
-    assert_eq!(cfg.fajr_iqamah, 20);
     assert!(cfg.use24_hour);
     assert_eq!(cfg.monitor_device_name.as_deref(), Some("\\\\.\\DISPLAY2"));
     assert_eq!(cfg.net_interface_id.as_deref(), Some("{ABC-123}"));
@@ -100,6 +94,14 @@ fn roundtrip_preserves_all_fields_including_deferred_meters() {
     canon(&mut a);
     canon(&mut b);
     assert_eq!(a, b, "serialized config must be semantically identical to the C# file");
+}
+
+/// v1.x/v2.0 configs still carry the removed iqamah keys; they must not break loading.
+#[test]
+fn removed_iqamah_fields_are_ignored() {
+    let cfg: AppConfig =
+        serde_json::from_str(r#"{"City":"Cairo","FajrIqamah":20,"IshaIqamah":10}"#).unwrap();
+    assert_eq!(cfg.city, "Cairo");
 }
 
 #[test]

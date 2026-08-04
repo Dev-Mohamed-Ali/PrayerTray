@@ -46,7 +46,6 @@ pub struct Popup {
     fast: String,
     usage: String,
     work: String,
-    chip_override: String,
     countdown: String,
     next_label: String,
     rows: Vec<Row>,
@@ -78,7 +77,6 @@ impl Popup {
             fast: String::new(),
             usage: String::new(),
             work: String::new(),
-            chip_override: String::new(),
             countdown: String::new(),
             next_label: String::new(),
             rows: Vec::new(),
@@ -157,7 +155,6 @@ impl Popup {
         fast: &str,
         usage: &str,
         work: &str,
-        chip_override: &str,
     ) {
         self.widget_rect = widget_rect;
         self.anchor_right = anchor_right;
@@ -168,7 +165,6 @@ impl Popup {
         self.fast = fast.into();
         self.usage = usage.into();
         self.work = work.into();
-        self.chip_override = chip_override.into();
         self.countdown = countdown.into();
         self.next_label = rows.iter().find(|r| r.is_next).map(|r| r.label.clone()).unwrap_or_default();
         self.rows = rows;
@@ -289,9 +285,7 @@ impl Popup {
         let accent_soft = SolidBrush::new(pal.accent_soft);
 
         // Countdown chip measured first so the date row reserves room for it.
-        let chip = if !self.chip_override.is_empty() {
-            self.chip_override.clone()
-        } else if self.countdown.is_empty() {
+        let chip = if self.countdown.is_empty() {
             String::new()
         } else {
             format!("{} {} {}", self.next_label, i18n::t("popup.in"), self.countdown)

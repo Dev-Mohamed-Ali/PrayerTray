@@ -77,7 +77,6 @@ const ID_METHOD: i32 = 210;
 const ID_ASR: i32 = 211;
 const ID_HIGHLAT: i32 = 212;
 const ID_ADJ_BASE: i32 = 220; // +0..4 (fajr..isha)
-const ID_IQ_BASE: i32 = 230; // +0..4
 const ID_LANGUAGE: i32 = 240;
 const ID_THEME: i32 = 241;
 const ID_FONT: i32 = 242;
@@ -130,7 +129,7 @@ const CARD_PAD: i32 = 16;
 const TITLE_H: i32 = 34;
 const CARD_Y: i32 = M;
 const ROW_H: i32 = 28;
-const CARD_H: i32 = CARD_PAD + TITLE_H + 15 * ROW_H + CARD_PAD; // 15 = tallest page (Calculation)
+const CARD_H: i32 = CARD_PAD + TITLE_H + 10 * ROW_H + CARD_PAD; // 10 = tallest page (Appearance)
 const LBL_X: i32 = CARD_X + CARD_PAD;
 const LABEL_W: i32 = 130;
 const CTRL_X: i32 = LBL_X + LABEL_W + 8;
@@ -426,13 +425,6 @@ impl Dialog {
             self.edit_at(1, ID_ADJ_BASE + i as i32, CTRL_X, y, 60);
             y += ROW_H;
         }
-        self.lbl(1, i18n::t("label.iqamahTune"), LBL_X, y, 380, true);
-        y += ROW_H;
-        for (i, key) in ADJ_PRAYERS.iter().enumerate() {
-            self.lbl(1, i18n::prayer(key), LBL_X, y, LABEL_W, false);
-            self.edit_at(1, ID_IQ_BASE + i as i32, CTRL_X, y, 60);
-            y += ROW_H;
-        }
 
         // --- Appearance ---
         let mut y = Y0;
@@ -595,10 +587,8 @@ impl Dialog {
         let hli = HIGHLAT_IDS.iter().position(|s| *s == cfg.high_lats).unwrap_or(0);
         controls::combo_set(self.item(ID_HIGHLAT), hli as i32);
         let adj = [cfg.fajr_adjust, cfg.dhuhr_adjust, cfg.asr_adjust, cfg.maghrib_adjust, cfg.isha_adjust];
-        let iq = [cfg.fajr_iqamah, cfg.dhuhr_iqamah, cfg.asr_iqamah, cfg.maghrib_iqamah, cfg.isha_iqamah];
         for i in 0..5 {
             self.set_num(ID_ADJ_BASE + i, adj[i as usize].clamp(-60, 60));
-            self.set_num(ID_IQ_BASE + i, iq[i as usize].clamp(0, 60));
         }
         let li = LANG_IDS.iter().position(|s| *s == cfg.language).unwrap_or(0);
         controls::combo_set(self.item(ID_LANGUAGE), li as i32);
@@ -707,12 +697,6 @@ impl Dialog {
         c.asr_adjust = adj[2];
         c.maghrib_adjust = adj[3];
         c.isha_adjust = adj[4];
-        let iq: Vec<i32> = (0..5).map(|i| self.get_num(ID_IQ_BASE + i, 0, 60).unwrap_or(0)).collect();
-        c.fajr_iqamah = iq[0];
-        c.dhuhr_iqamah = iq[1];
-        c.asr_iqamah = iq[2];
-        c.maghrib_iqamah = iq[3];
-        c.isha_iqamah = iq[4];
         c.widget_anchor = if controls::combo_sel(self.item(ID_POSITION)) == 1 { "Left" } else { "Right" }.into();
         c.theme = theme::NAMES[controls::combo_sel(self.item(ID_THEME)).clamp(0, 5) as usize].to_string();
         if let Some(f) = usize::try_from(controls::combo_sel(self.item(ID_FONT))).ok().and_then(|i| self.fonts.get(i)) {
@@ -1183,12 +1167,6 @@ impl Dialog {
                         self.live(|c| set_adjust(c, i, v));
                     }
                 }
-                n if (ID_IQ_BASE..ID_IQ_BASE + 5).contains(&n) => {
-                    if let Some(v) = self.get_num(n, 0, 60) {
-                        let i = (n - ID_IQ_BASE) as usize;
-                        self.live(|c| set_iqamah(c, i, v));
-                    }
-                }
                 _ => {}
             }
         }
@@ -1414,16 +1392,6 @@ fn set_adjust(c: &mut AppConfig, i: usize, v: i32) {
         2 => c.asr_adjust = v,
         3 => c.maghrib_adjust = v,
         _ => c.isha_adjust = v,
-    }
-}
-
-fn set_iqamah(c: &mut AppConfig, i: usize, v: i32) {
-    match i {
-        0 => c.fajr_iqamah = v,
-        1 => c.dhuhr_iqamah = v,
-        2 => c.asr_iqamah = v,
-        3 => c.maghrib_iqamah = v,
-        _ => c.isha_iqamah = v,
     }
 }
 

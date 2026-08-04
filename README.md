@@ -26,7 +26,7 @@ set your location. Settings from a v1.x install are picked up automatically (sam
 - **Click for the day** — popup with all of today's times, next prayer highlighted. Pin it to keep it
   open and drag it anywhere.
 - **Reminders & azan** — optional toast + sound N minutes before each prayer; play a bundled adhan
-  (Makkah / Madinah) or your own file at prayer time; optional iqamah countdown.
+  (Makkah / Madinah) or your own file at prayer time.
 - **Network meters** *(optional)* — live download/upload speed, latency (TCP :443 or ICMP), and a
   running per-day data total appended to the pill as a compact, fixed-width tail. A **Data usage**
   window shows per-day history (kept 90 days). Meter one chosen adapter or all of them.
