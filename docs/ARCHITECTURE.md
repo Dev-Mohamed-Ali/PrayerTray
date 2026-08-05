@@ -89,6 +89,31 @@ stay Western.
 carrying `PKEY_AppUserModel_ID` (created via `IShellLinkW`/`IPropertyStore`) — the same recipe and
 the same AUMID as v1.x, so upgraders don't get duplicate shortcuts. Tray balloons are the fallback.
 
+## Not shouting over a meeting
+
+`MuteWhenBusy` (on by default) silences reminder tones and the azan while the user is busy. Two
+probes back it, because either alone has a blind spot:
+
+- `SHQueryUserNotificationState()` — covers full screen / exclusive D3D / presentation mode and
+  Focus assist a.k.a. Do not disturb (`QUNS_QUIET_TIME`). It does **not** see a windowed video call,
+  which is the case that actually matters.
+- The microphone `ConsentStore` (`HKCU\…\CapabilityAccessManager\ConsentStore\microphone`, plus its
+  `NonPackaged` subtree): an app holding the mic has `LastUsedTimeStart != 0` and
+  `LastUsedTimeStop == 0`. That is how Windows itself drives the "mic in use" tray glyph, and it
+  catches windowed Teams/Zoom/Meet. A call outranks every other reason.
+
+`QUNS_NOT_PRESENT` (locked, screensaver) is deliberately *not* busy — that's away-from-desk, and the
+azan should still play. An unrecognized future state also falls through to "free": failing open is
+better than a permanently silent app.
+
+Only the sound is suppressed; the notification still posts (Windows queues it under DND on its
+own). Toasts carry `<audio silent='true'/>` already, but the tray-balloon fallback would otherwise
+ding — it gets `NIIF_NOSOUND` on the busy path, so muting the adhan doesn't leave a system chime in
+its place. A
+swallowed azan is held in `App::muted_azan` and, once the user is free, surfaces as one silent
+catch-up line that expires at the next prayer time. Replaying the adhan an hour late would be worse
+than staying quiet, so it is never played retroactively.
+
 ## Network metering
 
 The optional pill tail (down/up speed, ping, per-day data total) samples once per second on the
@@ -127,6 +152,8 @@ release.
 | `native/taskbar.rs` | Taskbar find/geometry, fullscreen detect, DPI |
 | `native/displays.rs` | Monitor enumeration + CCD friendly names |
 | `native/startup.rs` | HKCU Run key + StartupApproved handling |
+| `native/reg.rs` | Registry open/query/enumerate wrappers (RAII key handle) |
+| `native/quiet.rs` | Busy detection: shell notification state + mic-in-use probe |
 | `native/net.rs` | Adapter byte counters (GetIfTable2), NIC list, ICMP ping |
 | `native/time.rs` | Local time + DST-aware UTC offset + monotonic tick |
 | `ui/gdip.rs` | RAII GDI+ wrappers — the only unsafe-heavy drawing zone |

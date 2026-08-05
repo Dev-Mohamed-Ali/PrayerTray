@@ -114,6 +114,7 @@ const ID_AZANFILE: i32 = 270;
 const ID_AZANBROWSE: i32 = 271;
 const ID_AZANTEST: i32 = 272;
 const ID_AZANSTOP: i32 = 273;
+const ID_MUTEBUSY: i32 = 274;
 
 const BN_CLICKED: u32 = 0;
 const CBN_SELCHANGE: u32 = 1;
@@ -558,6 +559,8 @@ impl Dialog {
         y += ROW_H;
         self.btn_at(Some(5), ID_AZANTEST, i18n::t("btn.test"), CTRL_X, y, 60, CTRL_H);
         self.btn_at(Some(5), ID_AZANSTOP, i18n::t("btn.stop"), CTRL_X + 64, y, 60, CTRL_H);
+        y += ROW_H;
+        self.check_at(5, ID_MUTEBUSY, i18n::t("chk.muteBusy"), LBL_X, y, 400);
 
         // --- bottom buttons ---
         let save_x = CLIENT_W - M - 90;
@@ -653,6 +656,7 @@ impl Dialog {
             .unwrap_or(0);
         controls::combo_set(self.item(ID_AZAN), ai as i32);
         controls::set_text(self.item(ID_AZANFILE), cfg.azan_custom_path.as_deref().unwrap_or(""));
+        controls::set_checked(self.item(ID_MUTEBUSY), cfg.mute_when_busy);
     }
 
     fn try_lat(&self) -> Option<f64> {
@@ -736,6 +740,7 @@ impl Dialog {
         c.reminder_sound_path = (!rem_file.trim().is_empty()).then(|| rem_file.trim().to_string());
         c.azan_mode = azan_mode;
         c.azan_custom_path = (!azan_file.trim().is_empty()).then(|| azan_file.trim().to_string());
+        c.mute_when_busy = controls::checked(self.item(ID_MUTEBUSY));
         true
     }
 
@@ -768,6 +773,7 @@ impl Dialog {
         controls::set_readonly(self.item(ID_AZANFILE), !azan_custom);
         controls::enable(self.item(ID_AZANBROWSE), azan_custom);
         controls::enable(self.item(ID_AZANTEST), amode != "None");
+        controls::enable(self.item(ID_MUTEBUSY), snd || amode != "None");
         let show_hijri = controls::checked(self.item(ID_SHOWHIJRI));
         controls::set_readonly(self.item(ID_HIJRIADJ), !show_hijri);
 

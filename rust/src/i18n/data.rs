@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 151] = [
+pub static UI: [(&str, [&str; LANGS]); 154] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -15,6 +15,8 @@ pub static UI: [(&str, [&str; LANGS]); 151] = [
     ("balloon.jumuahBody", ["Jumu'ah prayer soon — prepare for the mosque", "صلاة الجمعة قريبًا — استعدّ للمسجد", "Prière du vendredi bientôt — préparez-vous pour la mosquée", "Cuma namazı yaklaştı — camiye hazırlanın", "جمعہ کی نماز قریب ہے — مسجد کے لیے تیار ہوں", "Salat Jumat segera — bersiaplah ke masjid"]),
     ("balloon.jumuahTitle", ["Jumu'ah", "الجمعة", "Joumou'a", "Cuma", "جمعہ", "Jumat"]),
     ("balloon.kahfBody", ["Jumu'ah Mubarak — read Surah Al-Kahf today", "جمعة مباركة — اقرأ سورة الكهف اليوم", "Joumou'a Moubarak — lisez la sourate Al-Kahf aujourd'hui", "Cumanız mübarek olsun — bugün Kehf suresini okuyun", "جمعہ مبارک — آج سورۃ الکہف پڑھیں", "Jumat Mubarak — baca Surah Al-Kahf hari ini"]),
+    ("balloon.mutedBody", ["{0} was at {1} — the azan stayed silent while you were busy", "{0} كان في {1} — بقي الأذان صامتًا أثناء انشغالك", "{0} était à {1} — l'azan est resté silencieux pendant que vous étiez occupé", "{0} vakti {1} idi — meşgulken ezan sessiz kaldı", "{0} کا وقت {1} تھا — مصروفیت کے دوران اذان خاموش رہی", "{0} pada {1} — azan dibisukan saat Anda sibuk"]),
+    ("balloon.mutedTitle", ["Azan was silenced", "تم كتم الأذان", "Azan mis en sourdine", "Ezan sessize alındı", "اذان خاموش کر دی گئی", "Azan dibisukan"]),
     ("balloon.reminderBody", ["{0} in {1} min ({2})", "{0} خلال {1} دقيقة ({2})", "{0} dans {1} min ({2})", "{0} için {1} dk kaldı ({2})", "{0} {1} منٹ میں ({2})", "{0} dalam {1} mnt ({2})"]),
     ("balloon.reminderTitle", ["Prayer reminder", "تذكير الصلاة", "Rappel de prière", "Namaz hatırlatıcısı", "نماز کی یاد دہانی", "Pengingat salat"]),
     ("balloon.timeBody", ["It is now {0} ({1})", "حان الآن وقت {0} ({1})", "C'est l'heure de {0} ({1})", "{0} vakti girdi ({1})", "اب {0} کا وقت ہے ({1})", "Sekarang waktu {0} ({1})"]),
@@ -40,6 +42,7 @@ pub static UI: [(&str, [&str; LANGS]); 151] = [
     ("chk.compactMeters", ["Compact meter width (2-digit values)", "عرض مضغوط للمقاييس (قيم من رقمين)", "Largeur compacte des compteurs (valeurs à 2 chiffres)", "Dar gösterge genişliği (2 basamaklı değerler)", "میٹر کی چوڑائی مختصر (دو ہندسی اقدار)", "Lebar meter ringkas (nilai 2 digit)"]),
     ("chk.fridayReminder", ["Friday: Jumu'ah & Al-Kahf reminder", "الجمعة: تذكير الجمعة وسورة الكهف", "Vendredi : rappel Joumou'a et Al-Kahf", "Cuma: Cuma ve Kehf hatırlatıcısı", "جمعہ: جمعہ اور الکہف یاد دہانی", "Jumat: pengingat Jumat & Al-Kahf"]),
     ("chk.hideFs", ["Hide over fullscreen apps", "إخفاء فوق تطبيقات ملء الشاشة", "Masquer en plein écran", "Tam ekranda gizle", "فل اسکرین پر چھپائیں", "Sembunyikan saat layar penuh"]),
+    ("chk.muteBusy", ["Silence sound when I'm busy (calls, full screen)", "كتم الصوت عند الانشغال (مكالمات، ملء الشاشة)", "Couper le son si occupé (appels, plein écran)", "Meşgulken sesi kapat (arama, tam ekran)", "مصروفیت میں آواز خاموش کریں (کال، فل اسکرین)", "Bisukan suara saat sibuk (panggilan, layar penuh)"]),
     ("chk.netSpeed", ["Show internet speed", "إظهار سرعة الإنترنت", "Afficher le débit Internet", "İnternet hızını göster", "انٹرنیٹ کی رفتار دکھائیں", "Tampilkan kecepatan internet"]),
     ("chk.ping", ["Show ping (latency)", "إظهار زمن الاستجابة (Ping)", "Afficher le ping (latence)", "Ping (gecikme) göster", "پنگ (تاخیر) دکھائیں", "Tampilkan ping (latensi)"]),
     ("chk.pingTcp", ["TCP ping (port 443, works with per-app proxy rules)", "فحص TCP (منفذ 443، يعمل مع قواعد البروكسي لكل تطبيق)", "Ping TCP (port 443, compatible règles proxy par application)", "TCP ping (443 portu, uygulama bazlı proxy kurallarıyla çalışır)", "TCP پنگ (پورٹ 443، فی ایپ پراکسی قواعد کے ساتھ کام کرتا ہے)", "Ping TCP (port 443, cocok dengan aturan proxy per aplikasi)"]),

@@ -8,7 +8,7 @@ use crate::calc::events;
 use crate::config::{AppConfig, AppState};
 use crate::datetime::Date;
 use crate::i18n;
-use crate::native::{displays, net, startup, time};
+use crate::native::{displays, net, quiet, startup, time};
 use crate::services::update::UpdateInfo;
 use crate::services::{audio, toast, update};
 use crate::services::data_usage::{self, DataUsage};
@@ -34,6 +34,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 const ORDER: [&str; 6] = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"];
+
+/// Cap on holding a muted azan when no later prayer bounds it (Isha).
+const MUTED_AZAN_MAX_HOLD: i64 = 3 * 3600;
 
 const TIMER_POS: usize = 1; // 1 s: reposition/seconds countdown
 const TIMER_DATA: usize = 2; // 15 s: render + notification checks
@@ -90,6 +93,13 @@ fn abs_of(date: Date, minutes: u16) -> i64 {
     date.to_rd() * 86400 + minutes as i64 * 60
 }
 
+/// An azan that was swallowed because the user was busy; surfaces once they're free.
+struct MutedAzan {
+    label: String,
+    time_s: String,
+    expires: i64,
+}
+
 pub struct App {
     pub cfg: AppConfig,
     state: AppState,
@@ -102,6 +112,7 @@ pub struct App {
     times_date: Date,
     fired: HashSet<String>,
     fired_date: Date,
+    muted_azan: Option<MutedAzan>,
     next_at: Option<i64>,
     taskbar_created_msg: u32,
     update_busy: bool,
@@ -138,6 +149,7 @@ impl App {
             times_date: Date::new(1, 1, 1),
             fired: HashSet::new(),
             fired_date: Date::new(1, 1, 1),
+            muted_azan: None,
             next_at: None,
             taskbar_created_msg: unsafe { RegisterWindowMessageW(w!("TaskbarCreated")) },
             update_busy: false,
@@ -491,33 +503,57 @@ impl App {
 
     /// Prefer a rich Action Center toast; fall back to a tray balloon.
     fn notify(&mut self, title: &str, body: &str) {
+        self.notify_ex(title, body, false);
+    }
+
+    /// `silent` suppresses the balloon's system ding; toasts are already silent by XML.
+    fn notify_ex(&mut self, title: &str, body: &str, silent: bool) {
         if self.cfg.rich_toasts && toast::show(title, body) {
             return;
         }
         if let Some(tray) = &mut self.tray {
-            tray.balloon(title, body);
+            tray.balloon(title, body, silent);
         }
     }
 
-    fn play_azan(&self) {
+    /// The file the configured azan would play, or None when nothing is set up.
+    fn azan_path(&self) -> Option<std::path::PathBuf> {
         let mode = if self.cfg.azan_mode == "Builtin" {
             audio::BUILTIN_ADHANS[0].0 // legacy config -> first builtin
         } else {
             self.cfg.azan_mode.as_str()
         };
         match mode {
-            "None" | "" => {}
-            "Custom" => {
-                if let Some(p) = &self.cfg.azan_custom_path {
-                    audio::play(std::path::Path::new(p));
-                }
-            }
-            id => {
-                if let Some(p) = audio::builtin_adhan_path(id) {
-                    audio::play(&p);
-                }
-            }
+            "None" | "" => None,
+            "Custom" => self
+                .cfg
+                .azan_custom_path
+                .as_deref()
+                .filter(|p| !p.trim().is_empty())
+                .map(std::path::PathBuf::from),
+            id => audio::builtin_adhan_path(id),
         }
+    }
+
+    fn play_azan(&self) {
+        if let Some(p) = self.azan_path() {
+            audio::play(&p);
+        }
+    }
+
+    /// None = free to make noise.
+    fn busy(&self) -> Option<quiet::Busy> {
+        self.cfg.mute_when_busy.then(quiet::state).flatten()
+    }
+
+    fn next_prayer_after(&self, date: Date, after: i64) -> Option<i64> {
+        ORDER
+            .iter()
+            .filter(|k| **k != "sunrise")
+            .filter_map(|k| self.time_of(k))
+            .map(|ts| abs_of(date, ts))
+            .filter(|t| *t > after)
+            .min()
     }
 
     fn fired_key(&self, date: Date, tail: &str) -> String {
@@ -552,8 +588,9 @@ impl App {
                     let mins = self.cfg.reminder_minutes.to_string();
                     let time_s = Self::format_time(ts, self.cfg.use24_hour);
                     let body = i18n::f("balloon.reminderBody", &[label, &mins, &time_s]);
-                    self.notify(i18n::t("balloon.reminderTitle"), &body);
-                    if self.cfg.reminder_sound {
+                    let busy = self.busy();
+                    self.notify_ex(i18n::t("balloon.reminderTitle"), &body, busy.is_some());
+                    if self.cfg.reminder_sound && busy.is_none() {
                         audio::play_reminder(&self.cfg);
                     }
                 }
@@ -564,8 +601,34 @@ impl App {
                 if self.fired.insert(id) {
                     let time_s = Self::format_time(ts, self.cfg.use24_hour);
                     let body = i18n::f("balloon.timeBody", &[label, &time_s]);
-                    self.notify(i18n::t("balloon.timeTitle"), &body);
-                    self.play_azan();
+                    let busy = self.busy();
+                    self.notify_ex(i18n::t("balloon.timeTitle"), &body, busy.is_some());
+                    self.muted_azan = None; // this prayer supersedes any older muted one
+                    if self.azan_path().is_some() {
+                        if busy.is_some() {
+                            self.muted_azan = Some(MutedAzan {
+                                label: label.to_string(),
+                                time_s,
+                                expires: self
+                                    .next_prayer_after(today, at)
+                                    .unwrap_or(at + MUTED_AZAN_MAX_HOLD),
+                            });
+                        } else {
+                            self.play_azan();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Catch-up line once the user is free; never a late replay of the adhan itself.
+        if let Some(m) = self.muted_azan.take() {
+            if now < m.expires {
+                if self.busy().is_some() {
+                    self.muted_azan = Some(m);
+                } else {
+                    let body = i18n::f("balloon.mutedBody", &[&m.label, &m.time_s]);
+                    self.notify(i18n::t("balloon.mutedTitle"), &body);
                 }
             }
         }
@@ -1047,7 +1110,7 @@ impl SettingsHost for App {
             return;
         }
         if let Some(tray) = &mut self.tray {
-            tray.balloon(title, body);
+            tray.balloon(title, body, false);
         }
     }
 }

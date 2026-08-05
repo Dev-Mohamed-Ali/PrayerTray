@@ -4,7 +4,7 @@ use windows::core::PWSTR;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Shell::{
-    Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIIF_INFO, NIM_ADD, NIM_DELETE,
+    Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIIF_INFO, NIIF_NOSOUND, NIM_ADD, NIM_DELETE,
     NIM_MODIFY, NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{LoadImageW, HICON, IMAGE_ICON, LR_DEFAULTSIZE, WM_APP};
@@ -83,10 +83,10 @@ impl TrayIcon {
         unsafe { let _ = Shell_NotifyIconW(NIM_MODIFY, &d); }
     }
 
-    pub fn balloon(&mut self, title: &str, body: &str) {
+    pub fn balloon(&mut self, title: &str, body: &str, silent: bool) {
         let mut d = self.base();
         d.uFlags = NIF_INFO;
-        d.dwInfoFlags = NIIF_INFO;
+        d.dwInfoFlags = if silent { NIIF_INFO | NIIF_NOSOUND } else { NIIF_INFO };
         copy_to(&mut d.szInfoTitle, title);
         copy_to(&mut d.szInfo, body);
         unsafe { let _ = Shell_NotifyIconW(NIM_MODIFY, &d); }

@@ -1,73 +1,15 @@
 //! HKCU Run-key startup toggle honoring Task Manager's StartupApproved state,
 //! port of the startup section of AppHost.cs.
 
+use super::reg::{create_hkcu as create, open_hkcu as open, query, Key};
 use windows::core::w;
-use windows::Win32::System::Registry::{
-    RegCloseKey, RegCreateKeyExW, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW,
-    RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_BINARY,
-    REG_OPTION_NON_VOLATILE, REG_SZ, REG_VALUE_TYPE,
-};
+use windows::Win32::System::Registry::{RegDeleteValueW, RegSetValueExW, REG_BINARY, REG_SZ};
 
 const RUN_KEY: windows::core::PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
 // Task Manager's Startup-apps enable/disable state; first byte odd = disabled.
 const APPROVED_KEY: windows::core::PCWSTR =
     w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run");
 const APP_NAME: windows::core::PCWSTR = w!("PrayerTray");
-
-struct Key(HKEY);
-
-impl Drop for Key {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = RegCloseKey(self.0);
-        }
-    }
-}
-
-fn open(path: windows::core::PCWSTR, write: bool) -> Option<Key> {
-    let mut h = HKEY::default();
-    let access = if write { KEY_READ | KEY_WRITE } else { KEY_READ };
-    let r = unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, path, None, access, &mut h) };
-    r.is_ok().then_some(Key(h))
-}
-
-fn create(path: windows::core::PCWSTR) -> Option<Key> {
-    let mut h = HKEY::default();
-    let r = unsafe {
-        RegCreateKeyExW(
-            HKEY_CURRENT_USER,
-            path,
-            None,
-            None,
-            REG_OPTION_NON_VOLATILE,
-            KEY_READ | KEY_WRITE,
-            None,
-            &mut h,
-            None,
-        )
-    };
-    r.is_ok().then_some(Key(h))
-}
-
-fn query(key: &Key, name: windows::core::PCWSTR) -> Option<(REG_VALUE_TYPE, Vec<u8>)> {
-    let mut ty = REG_VALUE_TYPE::default();
-    let mut len = 0u32;
-    unsafe { RegQueryValueExW(key.0, name, None, Some(&mut ty), None, Some(&mut len)) }
-        .is_ok()
-        .then(|| {
-            let mut buf = vec![0u8; len as usize];
-            let mut len2 = len;
-            unsafe {
-                RegQueryValueExW(key.0, name, None, Some(&mut ty), Some(buf.as_mut_ptr()), Some(&mut len2))
-            }
-            .is_ok()
-            .then(|| {
-                buf.truncate(len2 as usize);
-                (ty, buf)
-            })
-        })
-        .flatten()
-}
 
 fn startup_command() -> String {
     let exe = std::env::current_exe().unwrap_or_default();

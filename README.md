@@ -27,6 +27,10 @@ set your location. Settings from a v1.x install are picked up automatically (sam
   open and drag it anywhere.
 - **Reminders & azan** — optional toast + sound N minutes before each prayer; play a bundled adhan
   (Makkah / Madinah) or your own file at prayer time.
+- **Quiet when you're busy** — no adhan blasting through a Teams call, a full-screen game, a
+  presentation, or Do not disturb. The notification still arrives; the sound doesn't. Once you're
+  free again you get a single silent "the azan was muted" line. On by default, one checkbox to
+  turn off.
 - **Network meters** *(optional)* — live download/upload speed, latency (TCP :443 or ICMP), and a
   running per-day data total appended to the pill as a compact, fixed-width tail. A **Data usage**
   window shows per-day history (kept 90 days). Meter one chosen adapter or all of them.

@@ -9,6 +9,10 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
+fn is_true(b: &bool) -> bool {
+    *b
+}
+
 /// PopupX/PopupY unset sentinel (C# int.MinValue).
 pub const POPUP_UNSET: i32 = i32::MIN;
 /// TimezoneHours "use system timezone" sentinel.
@@ -67,6 +71,9 @@ pub struct AppConfig {
     pub reminder_sound_path: Option<String>,
     pub azan_mode: String, // None | <builtin id> | Custom
     pub azan_custom_path: Option<String>,
+    // Rust-only, defaults on — only the opt-out is written, keeping configs C#-compatible.
+    #[serde(skip_serializing_if = "is_true")]
+    pub mute_when_busy: bool,
 }
 
 impl Default for AppConfig {
@@ -118,6 +125,7 @@ impl Default for AppConfig {
             reminder_sound_path: None,
             azan_mode: "None".into(),
             azan_custom_path: None,
+            mute_when_busy: true,
         }
     }
 }
