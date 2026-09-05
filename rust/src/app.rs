@@ -40,6 +40,9 @@ const MUTED_AZAN_MAX_HOLD: i64 = 3 * 3600;
 const TIMER_POS: usize = 1; // 1 s: reposition/seconds countdown
 const TIMER_DATA: usize = 2; // 15 s: render + notification checks
 
+/// Seconds each meter holds the shared tail slot when rotation is on.
+const ROTATE_SECS: u32 = 4;
+
 const CMD_SHOW_TIMES: usize = 1001;
 const CMD_REFRESH: usize = 1002;
 const CMD_STARTUP: usize = 1003;
@@ -118,6 +121,7 @@ pub struct App {
     latency: Latency,
     data_usage: DataUsage,
     usage_open: bool,
+    rot: u32,
 }
 
 impl App {
@@ -153,6 +157,7 @@ impl App {
             latency: Latency::new(),
             data_usage: DataUsage::new(),
             usage_open: false,
+            rot: 0,
         });
         let app = Box::leak(app); // lives for the process; freed by the OS at exit
 
@@ -267,6 +272,7 @@ impl App {
         if let Some(w) = &mut self.widget {
             w.tick();
         }
+        self.rot = self.rot.wrapping_add(1);
         // One adapter snapshot feeds both the usage accumulator and the live meters.
         let tracking = self.cfg.track_data_usage;
         let meters = self.has_pill_meters();
@@ -304,10 +310,11 @@ impl App {
         }
     }
 
-    /// Build the up-to-4 tail segments (down, up, ping, usage) with worst-case templates.
+    /// Build the tail segments (down, up, ping, usage) with worst-case templates. With rotation
+    /// on they collapse to one shared slot, so enabling another meter never widens the pill.
     fn update_net_segments(&mut self, rows: &[net::IfRow]) {
         let compact = self.cfg.compact_meters;
-        let mut segs: Vec<(String, String)> = Vec::with_capacity(4);
+        let mut segs: Vec<(String, String)> = Vec::with_capacity(6);
         if self.cfg.show_net_speed {
             let (down, up) = self.net_speed.sample(rows);
             let (d, u) = net_speed::format_parts(down, up);
@@ -325,9 +332,24 @@ impl App {
                 if compact { "Σ 888 MB" } else { "Σ 8.88 GB" }.into(),
             ));
         }
+        if self.cfg.rotate_meters && segs.len() > 1 {
+            segs = vec![Self::rotated(&segs, self.rot)];
+        }
         if let Some(w) = &mut self.widget {
             w.set_net(segs);
         }
+    }
+
+    /// Whichever meter currently holds the slot. The template stays the widest of the whole set:
+    /// varying it per turn would trip set_net's re-seed and the pill would jump every rotation.
+    fn rotated(segs: &[(String, String)], rot: u32) -> (String, String) {
+        let tmpl = segs
+            .iter()
+            .map(|s| s.1.as_str())
+            .max_by_key(|t| t.chars().count())
+            .unwrap_or_default();
+        let i = (rot / ROTATE_SECS) as usize % segs.len();
+        (segs[i].0.clone(), tmpl.to_string())
     }
 
     fn show_data_usage(&mut self) {

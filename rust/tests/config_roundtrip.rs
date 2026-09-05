@@ -82,15 +82,21 @@ fn canon(v: &mut serde_json::Value) {
     }
 }
 
+/// The contract is that no C# field is ever dropped or renamed on the way back out. Rust-only
+/// settings added since the port are allowed to appear alongside them, so this is a subset check
+/// rather than an equality one.
 #[test]
-fn roundtrip_preserves_all_fields_including_deferred_meters() {
+fn roundtrip_preserves_every_csharp_field() {
     let cfg: AppConfig = serde_json::from_str(CSHARP_CONFIG).unwrap();
     let out = serde_json::to_string_pretty(&cfg).unwrap();
     let mut a: serde_json::Value = serde_json::from_str(CSHARP_CONFIG).unwrap();
     let mut b: serde_json::Value = serde_json::from_str(&out).unwrap();
     canon(&mut a);
     canon(&mut b);
-    assert_eq!(a, b, "serialized config must be semantically identical to the C# file");
+    let (before, after) = (a.as_object().unwrap(), b.as_object().unwrap());
+    for (key, value) in before {
+        assert_eq!(after.get(key), Some(value), "C# field {key} must survive a round-trip");
+    }
 }
 
 /// v1.x/v2.0 configs still carry the removed iqamah keys; they must not break loading.
