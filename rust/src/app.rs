@@ -14,6 +14,7 @@ use crate::services::{audio, toast, update};
 use crate::services::data_usage::{self, DataUsage};
 use crate::services::latency::{self, Latency};
 use crate::services::net_speed::{self, NetSpeed};
+use crate::services::sys_meters::{self, SysMeters};
 use crate::services::location::DetectedLocation;
 use crate::ui::icon::{TrayIcon, WM_TRAY};
 use crate::ui::popup::{Popup, Row, WM_POPUP_MOVED, WM_POPUP_PIN};
@@ -120,6 +121,7 @@ pub struct App {
     net_speed: NetSpeed,
     latency: Latency,
     data_usage: DataUsage,
+    sys: SysMeters,
     usage_open: bool,
     rot: u32,
 }
@@ -156,6 +158,7 @@ impl App {
             net_speed: NetSpeed::new(),
             latency: Latency::new(),
             data_usage: DataUsage::new(),
+            sys: SysMeters::new(),
             usage_open: false,
             rot: 0,
         });
@@ -296,6 +299,7 @@ impl App {
     fn has_pill_meters(&self) -> bool {
         self.cfg.show_net_speed
             || self.cfg.show_ping
+            || self.cfg.show_sys_meters
             || (self.cfg.track_data_usage && self.cfg.show_data_usage)
     }
 
@@ -331,6 +335,10 @@ impl App {
                 format!("Σ {}", data_usage::size(rx + tx)),
                 if compact { "Σ 888 MB" } else { "Σ 8.88 GB" }.into(),
             ));
+        }
+        if self.cfg.show_sys_meters {
+            segs.push((sys_meters::format_cpu(self.sys.cpu_percent()), "CPU 100%".into()));
+            segs.push((sys_meters::format_ram(sys_meters::memory_percent()), "RAM 100%".into()));
         }
         if self.cfg.rotate_meters && segs.len() > 1 {
             segs = vec![Self::rotated(&segs, self.rot)];

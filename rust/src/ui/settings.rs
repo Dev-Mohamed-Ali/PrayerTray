@@ -88,6 +88,7 @@ const ID_HIDEFS: i32 = 248;
 const ID_NETSPEED: i32 = 280;
 const ID_PING: i32 = 281;
 const ID_PINGHOST: i32 = 282;
+const ID_SYSMETERS: i32 = 284;
 const ID_ROTATE: i32 = 283;
 const ID_COMPACT: i32 = 285;
 const ID_TRACKUSAGE: i32 = 286;
@@ -482,6 +483,8 @@ impl Dialog {
         self.lbl_for(3, ID_PINGHOST, i18n::t("label.pingHost"), LBL_X, y, LABEL_W);
         self.edit_at(3, ID_PINGHOST, CTRL_X, y, 200);
         y += ROW_H;
+        self.check_at(3, ID_SYSMETERS, i18n::t("chk.sysMeters"), LBL_X, y, 380);
+        y += ROW_H;
         self.check_at(3, ID_COMPACT, i18n::t("chk.compactMeters"), LBL_X, y, 380);
         y += ROW_H;
         self.check_at(3, ID_ROTATE, i18n::t("chk.rotateMeters"), LBL_X, y, 380);
@@ -601,6 +604,7 @@ impl Dialog {
         controls::set_checked(self.item(ID_NETSPEED), cfg.show_net_speed);
         controls::set_checked(self.item(ID_PING), cfg.show_ping);
         controls::set_text(self.item(ID_PINGHOST), &cfg.ping_host);
+        controls::set_checked(self.item(ID_SYSMETERS), cfg.show_sys_meters);
         controls::set_checked(self.item(ID_COMPACT), cfg.compact_meters);
         controls::set_checked(self.item(ID_ROTATE), cfg.rotate_meters);
         controls::set_checked(self.item(ID_TRACKUSAGE), cfg.track_data_usage);
@@ -688,6 +692,7 @@ impl Dialog {
         c.show_ping = controls::checked(self.item(ID_PING));
         let ping_host = controls::get_text(self.item(ID_PINGHOST));
         c.ping_host = if ping_host.trim().is_empty() { "1.1.1.1".into() } else { ping_host.trim().to_string() };
+        c.show_sys_meters = controls::checked(self.item(ID_SYSMETERS));
         c.compact_meters = controls::checked(self.item(ID_COMPACT));
         c.rotate_meters = controls::checked(self.item(ID_ROTATE));
         c.track_data_usage = controls::checked(self.item(ID_TRACKUSAGE));
@@ -749,7 +754,8 @@ impl Dialog {
         let show_usage = controls::checked(self.item(ID_SHOWUSAGE));
         controls::set_readonly(self.item(ID_PINGHOST), !ping);
         controls::enable(self.item(ID_SHOWUSAGE), track);
-        let any_meter = netspeed || ping || (track && show_usage);
+        let sysm = controls::checked(self.item(ID_SYSMETERS));
+        let any_meter = netspeed || ping || sysm || (track && show_usage);
         controls::enable(self.item(ID_COMPACT), any_meter);
         controls::enable(self.item(ID_ROTATE), any_meter);
 
@@ -1035,6 +1041,11 @@ impl Dialog {
                 ID_PING => {
                     let v = controls::checked(self.item(ID_PING));
                     self.live(|c| c.show_ping = v);
+                    self.sync_enabled();
+                }
+                ID_SYSMETERS => {
+                    let v = controls::checked(self.item(ID_SYSMETERS));
+                    self.live(|c| c.show_sys_meters = v);
                     self.sync_enabled();
                 }
                 ID_ROTATE => {

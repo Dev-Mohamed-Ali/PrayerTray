@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 142] = [
+pub static UI: [(&str, [&str; LANGS]); 143] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -53,6 +53,7 @@ pub static UI: [(&str, [&str; LANGS]); 142] = [
     ("chk.showHijri", ["Show Hijri date", "إظهار التاريخ الهجري", "Afficher la date hégirienne", "Hicri tarihi göster", "ہجری تاریخ دکھائیں", "Tampilkan tanggal Hijriah"]),
     ("chk.showUsage", ["Show today's data total in the pill", "إظهار إجمالي اليوم في الشريط", "Afficher le total du jour dans la pastille", "Bugünün toplamını çubukta göster", "آج کا کل ڈیٹا پٹی میں دکھائیں", "Tampilkan total hari ini di pil"]),
     ("chk.sunnahFast", ["Remind me about Sunnah fasting (eve before)", "تذكيري بصيام السنة (مساء اليوم السابق)", "Me rappeler le jeûne surérogatoire (la veille)", "Nafile orucu hatırlat (bir gece önce)", "نفلی روزے کی یاد دہانی (ایک رات پہلے)", "Ingatkan puasa sunah (malam sebelumnya)"]),
+    ("chk.sysMeters", ["Show CPU and memory", "إظهار المعالج والذاكرة", "Afficher le processeur et la mémoire", "İşlemci ve belleği göster", "سی پی یو اور میموری دکھائیں", "Tampilkan CPU dan memori"]),
     ("chk.trackUsage", ["Track data usage", "تتبع استهلاك البيانات", "Suivre la consommation de données", "Veri kullanımını izle", "ڈیٹا استعمال ٹریک کریں", "Lacak penggunaan data"]),
     ("chk.use24", ["Use 24-hour clock", "نظام 24 ساعة", "Format 24 heures", "24 saat biçimi", "24 گھنٹے کا نظام", "Gunakan format 24 jam"]),
     ("city.myLocation", ["My location", "موقعي", "Ma position", "Konumum", "میرا مقام", "Lokasi saya"]),

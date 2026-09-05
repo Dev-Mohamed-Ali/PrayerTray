@@ -4,5 +4,6 @@ pub mod http;
 pub mod latency;
 pub mod location;
 pub mod net_speed;
+pub mod sys_meters;
 pub mod toast;
 pub mod update;
