@@ -137,7 +137,7 @@ back to an interface-type allowlist (ethernet/Wi-Fi/WWAN) so the meters can neve
 zero. Measured end-to-end against a 10 MB download behind a VPN: 2.7× before, 1.04× after (the
 remainder is TCP/IP framing plus background traffic).
 
-Ping runs off-thread: a short-lived probe (ICMP `IcmpSendEcho`, or a TCP :443 connect timing) at
+Ping runs off-thread: a short-lived ICMP `IcmpSendEcho` at
 most every 3 s writes an `AtomicI32`; the next tick reads it, so the UI never blocks. The tail keeps
 a **stable width** via grow-only per-segment slots seeded from worst-case templates and reset only
 on a font/DPI-scale change — live values never make the pill jitter.

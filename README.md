@@ -31,7 +31,7 @@ set your location. Settings from a v1.x install are picked up automatically (sam
   presentation, or Do not disturb. The notification still arrives; the sound doesn't. Once you're
   free again you get a single silent "the azan was muted" line. On by default, one checkbox to
   turn off.
-- **Network meters** *(optional)* — live download/upload speed, latency (TCP :443 or ICMP), and a
+- **Network meters** *(optional)* — live download/upload speed, latency (ICMP), and a
   running per-day data total appended to the pill as a compact, fixed-width tail. A **Data usage**
   window shows per-day history (kept 90 days). Adapters are picked automatically: only real NICs
   are counted, so a VPN tunnel no longer doubles your totals.

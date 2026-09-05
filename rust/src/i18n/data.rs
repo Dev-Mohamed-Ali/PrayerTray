@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 142] = [
+pub static UI: [(&str, [&str; LANGS]); 141] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -45,7 +45,6 @@ pub static UI: [(&str, [&str; LANGS]); 142] = [
     ("chk.muteBusy", ["Silence sound when I'm busy (calls, full screen)", "كتم الصوت عند الانشغال (مكالمات، ملء الشاشة)", "Couper le son si occupé (appels, plein écran)", "Meşgulken sesi kapat (arama, tam ekran)", "مصروفیت میں آواز خاموش کریں (کال، فل اسکرین)", "Bisukan suara saat sibuk (panggilan, layar penuh)"]),
     ("chk.netSpeed", ["Show internet speed", "إظهار سرعة الإنترنت", "Afficher le débit Internet", "İnternet hızını göster", "انٹرنیٹ کی رفتار دکھائیں", "Tampilkan kecepatan internet"]),
     ("chk.ping", ["Show ping (latency)", "إظهار زمن الاستجابة (Ping)", "Afficher le ping (latence)", "Ping (gecikme) göster", "پنگ (تاخیر) دکھائیں", "Tampilkan ping (latensi)"]),
-    ("chk.pingTcp", ["TCP ping (port 443, works with per-app proxy rules)", "فحص TCP (منفذ 443، يعمل مع قواعد البروكسي لكل تطبيق)", "Ping TCP (port 443, compatible règles proxy par application)", "TCP ping (443 portu, uygulama bazlı proxy kurallarıyla çalışır)", "TCP پنگ (پورٹ 443، فی ایپ پراکسی قواعد کے ساتھ کام کرتا ہے)", "Ping TCP (port 443, cocok dengan aturan proxy per aplikasi)"]),
     ("chk.playSound", ["Play a sound", "تشغيل صوت", "Jouer un son", "Ses çal", "آواز چلائیں", "Putar suara"]),
     ("chk.remind", ["Remind me before each prayer", "تذكيري قبل كل صلاة", "Me rappeler avant chaque prière", "Her namazdan önce hatırlat", "ہر نماز سے پہلے یاد دہانی", "Ingatkan sebelum setiap salat"]),
     ("chk.richToasts", ["Use Windows notifications (rich toasts)", "استخدام إشعارات ويندوز (إشعارات منسّقة)", "Utiliser les notifications Windows", "Windows bildirimlerini kullan", "ونڈوز اطلاعات استعمال کریں", "Gunakan notifikasi Windows"]),

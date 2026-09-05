@@ -24,7 +24,6 @@ const CSHARP_CONFIG: &str = r#"{
   "ShowNetSpeed": true,
   "ShowPing": true,
   "PingHost": "8.8.8.8",
-  "PingTcp": true,
   "CompactMeters": true,
   "TrackDataUsage": true,
   "ShowDataUsage": false,

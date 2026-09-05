@@ -297,7 +297,6 @@ impl App {
     /// Port of AppHost.ApplyWidgetConfig's net section.
     fn apply_net_config(&mut self) {
         self.latency.set_host(&self.cfg.ping_host);
-        self.latency.set_mode(self.cfg.ping_tcp);
         if !self.has_pill_meters() {
             if let Some(w) = &mut self.widget {
                 w.set_net(Vec::new());
