@@ -20,8 +20,3 @@ release: set `PRAYERTRAY_DEV_MUTEX=1`.
 tree at port time. The generators went with it — edit these by hand now. The fixtures are frozen
 goldens: they still gate `cargo test`, but a change to them can no longer be checked against the
 original engine (recover it from tag `v1.14.0` if that is ever needed).
-
-## Deferred to v2.x
-
-Net speed / ping meters, data-usage tracking, and the NIC picker. Their config fields
-still round-trip so nothing is lost for users migrating from v1.

@@ -293,14 +293,11 @@ impl App {
             || (self.cfg.track_data_usage && self.cfg.show_data_usage)
     }
 
-    /// Push the net-config down to the samplers (each clears its baseline on change) and clear
-    /// the tail when no meter is shown. Port of AppHost.ApplyWidgetConfig's net section.
+    /// Push the net-config down to the probe and clear the tail when no meter is shown.
+    /// Port of AppHost.ApplyWidgetConfig's net section.
     fn apply_net_config(&mut self) {
         self.latency.set_host(&self.cfg.ping_host);
         self.latency.set_mode(self.cfg.ping_tcp);
-        let iface = self.cfg.net_interface_id.as_deref();
-        self.net_speed.set_interface(iface);
-        self.data_usage.set_interface(iface);
         if !self.has_pill_meters() {
             if let Some(w) = &mut self.widget {
                 w.set_net(Vec::new());

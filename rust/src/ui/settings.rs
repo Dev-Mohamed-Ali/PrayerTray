@@ -5,7 +5,6 @@ use crate::calc::praytimes::METHODS;
 use crate::config::AppConfig;
 use crate::i18n;
 use crate::native::displays::{self, Monitor};
-use crate::native::net;
 use crate::services::{audio, location, location::DetectedLocation};
 use crate::ui::controls::{self, ButtonKind};
 use crate::ui::theme;
@@ -90,7 +89,6 @@ const ID_NETSPEED: i32 = 280;
 const ID_PING: i32 = 281;
 const ID_PINGHOST: i32 = 282;
 const ID_PINGTCP: i32 = 283;
-const ID_NETIFACE: i32 = 284;
 const ID_COMPACT: i32 = 285;
 const ID_TRACKUSAGE: i32 = 286;
 const ID_SHOWUSAGE: i32 = 287;
@@ -162,7 +160,6 @@ struct Dialog {
     fonts: Vec<String>,
     rem_ids: Vec<&'static str>,
     azan_ids: Vec<String>,
-    iface_ids: Vec<String>, // combo index -> adapter guid ("" = all); parallels the NIC combo
 }
 
 /// Modal settings dialog on the current thread (nested message loop).
@@ -204,7 +201,6 @@ pub fn run(host: &mut dyn SettingsHost, snapshot: &AppConfig, prefill: Option<&D
         fonts: controls::font_families(),
         rem_ids,
         azan_ids,
-        iface_ids: Vec::new(),
     });
 
     let rtl = if i18n::is_rtl() { WS_EX_LAYOUTRTL } else { WINDOW_EX_STYLE::default() };
@@ -488,15 +484,6 @@ impl Dialog {
         y += ROW_H;
         self.check_at(3, ID_PINGTCP, i18n::t("chk.pingTcp"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl_for(3, ID_NETIFACE, i18n::t("label.netInterface"), LBL_X, y, LABEL_W);
-        let iface = self.combo_at(3, ID_NETIFACE, CTRL_X, y, 268);
-        self.iface_ids.push(String::new());
-        controls::combo_add(iface, i18n::t("iface.all"));
-        for (name, guid) in net::adapters() {
-            self.iface_ids.push(guid);
-            controls::combo_add(iface, &name);
-        }
-        y += ROW_H;
         self.check_at(3, ID_COMPACT, i18n::t("chk.compactMeters"), LBL_X, y, 380);
         y += ROW_H;
         self.check_at(3, ID_TRACKUSAGE, i18n::t("chk.trackUsage"), LBL_X, y, 380);
@@ -615,20 +602,6 @@ impl Dialog {
         controls::set_checked(self.item(ID_PING), cfg.show_ping);
         controls::set_text(self.item(ID_PINGHOST), &cfg.ping_host);
         controls::set_checked(self.item(ID_PINGTCP), cfg.ping_tcp);
-        let ni = match &cfg.net_interface_id {
-            None => 0,
-            Some(id) => {
-                if let Some(p) = self.iface_ids.iter().position(|g| g.eq_ignore_ascii_case(id)) {
-                    p as i32
-                } else {
-                    // Saved adapter no longer present: keep the selection, mark it disconnected.
-                    self.iface_ids.push(id.clone());
-                    controls::combo_add(self.item(ID_NETIFACE), i18n::t("iface.missing"));
-                    (self.iface_ids.len() - 1) as i32
-                }
-            }
-        };
-        controls::combo_set(self.item(ID_NETIFACE), ni);
         controls::set_checked(self.item(ID_COMPACT), cfg.compact_meters);
         controls::set_checked(self.item(ID_TRACKUSAGE), cfg.track_data_usage);
         controls::set_checked(self.item(ID_SHOWUSAGE), cfg.show_data_usage);
@@ -716,8 +689,6 @@ impl Dialog {
         let ping_host = controls::get_text(self.item(ID_PINGHOST));
         c.ping_host = if ping_host.trim().is_empty() { "1.1.1.1".into() } else { ping_host.trim().to_string() };
         c.ping_tcp = controls::checked(self.item(ID_PINGTCP));
-        let isel = controls::combo_sel(self.item(ID_NETIFACE)).max(0) as usize;
-        c.net_interface_id = self.iface_ids.get(isel).filter(|g| !g.is_empty()).cloned();
         c.compact_meters = controls::checked(self.item(ID_COMPACT));
         c.track_data_usage = controls::checked(self.item(ID_TRACKUSAGE));
         c.show_data_usage = controls::checked(self.item(ID_SHOWUSAGE));
@@ -776,16 +747,13 @@ impl Dialog {
         let ping = controls::checked(self.item(ID_PING));
         let track = controls::checked(self.item(ID_TRACKUSAGE));
         let show_usage = controls::checked(self.item(ID_SHOWUSAGE));
-        let iface_on = netspeed || ping || track;
         controls::set_readonly(self.item(ID_PINGHOST), !ping);
         controls::enable(self.item(ID_PINGTCP), ping);
-        controls::enable(self.item(ID_NETIFACE), iface_on);
         controls::enable(self.item(ID_SHOWUSAGE), track);
         controls::enable(self.item(ID_COMPACT), netspeed || ping || (track && show_usage));
 
         let states = [
             (ID_PINGHOST, ping),
-            (ID_NETIFACE, iface_on),
             (ID_HIJRIADJ, show_hijri),
             (ID_REMMINS, rem),
             (ID_REMSOUNDCB, snd),
@@ -1124,11 +1092,6 @@ impl Dialog {
                     self.live(|c| c.widget_anchor = if left { "Left" } else { "Right" }.into());
                 }
                 ID_REMSOUNDCB | ID_AZAN => self.sync_enabled(),
-                ID_NETIFACE => {
-                    let sel = controls::combo_sel(self.item(ID_NETIFACE)).max(0) as usize;
-                    let id = self.iface_ids.get(sel).filter(|g| !g.is_empty()).cloned();
-                    self.live(|c| c.net_interface_id = id);
-                }
                 _ => {} // monitor change applies on Save only
             }
         } else if code == EN_KILLFOCUS {

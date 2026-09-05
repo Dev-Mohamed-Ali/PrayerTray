@@ -32,9 +32,10 @@ from a paper spec:
   C# tree, so these files (and the fixtures above) are now hand-maintained frozen goldens.
 
 Config compatibility is a hard contract: `%APPDATA%\PrayerTray\config.json`, PascalCase via serde,
-sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). One exception:
-`TrackWorkHours` is dropped on save now that work-hours tracking is gone; unknown keys are ignored
-on load, so an older file still opens. The data-usage store
+sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). Two exceptions, both
+one-way: `NetInterfaceId` (the NIC picker was removed — the meter now decides for itself) and
+`TrackWorkHours` are dropped on save. Unknown keys are ignored on load, so an older file still
+opens; a downgrade to v1 just loses those two settings. The data-usage store
 (`%APPDATA%\PrayerTray\usage.json`, `{"yyyy-MM-dd":{"Rx":n,"Tx":n}}`, 90-day retention) is
 byte-compatible with the C# build's file too.
 
@@ -121,11 +122,20 @@ than staying quiet, so it is never played retroactively.
 The optional pill tail (down/up speed, ping, per-day data total) samples once per second on the
 existing `TIMER_POS` tick — one `GetIfTable2` snapshot per tick feeds both the speed meters and the
 usage accumulator. Byte counters come from `MIB_IF_ROW2` (`InOctets`/`OutOctets`), keyed by the
-adapter's braced GUID so it matches the C# `NetInterfaceId`. A shared `delta()` handles the subtle
-cases — a counter reset or a re-appearing adapter primes the baseline instead of injecting its
-since-boot total as one spike, and a >10 s gap (sleep/resume) re-primes rather than backfilling.
-The NIC picker lists only currently-up, non-filter, non-tunnel adapters (raw `GetIfTable2` also
-surfaces the NDIS/WFP/QoS filter pseudo-interfaces that `.NET`'s `GetAllNetworkInterfaces` hid).
+adapter's braced GUID. A shared `delta()` handles the subtle cases — a counter reset or a
+re-appearing adapter primes the baseline instead of injecting its since-boot total as one spike,
+and a >10 s gap (sleep/resume) re-primes rather than backfilling.
+
+**Which adapters count.** There is no NIC picker; `net::metered()` decides. A VPN TUN, a Wi-Fi
+Direct virtual, or a Hyper-V vSwitch carries the same payload as the NIC beneath it, so summing
+both roughly doubles every transfer. `if_type` does not separate them — measured on a nekoray
+(tun2socks) box, the TUN is type `53` and the three Wi-Fi Direct virtuals report plain ethernet
+(`6`), same as the real NIC. The `MIB_IF_ROW2.InterfaceAndOperStatusFlags` **`HardwareInterface`**
+bit does: on that machine only the real `Ethernet` row sets it. So metering takes rows that are up,
+not a WFP/QoS filter pseudo-interface, and hardware-backed; if no row reports the flag it falls
+back to an interface-type allowlist (ethernet/Wi-Fi/WWAN) so the meters can never read a permanent
+zero. Measured end-to-end against a 10 MB download behind a VPN: 2.7× before, 1.04× after (the
+remainder is TCP/IP framing plus background traffic).
 
 Ping runs off-thread: a short-lived probe (ICMP `IcmpSendEcho`, or a TCP :443 connect timing) at
 most every 3 s writes an `AtomicI32`; the next tick reads it, so the UI never blocks. The tail keeps
@@ -156,7 +166,7 @@ release.
 | `native/startup.rs` | HKCU Run key + StartupApproved handling |
 | `native/reg.rs` | Registry open/query/enumerate wrappers (RAII key handle) |
 | `native/quiet.rs` | Busy detection: shell notification state + mic-in-use probe |
-| `native/net.rs` | Adapter byte counters (GetIfTable2), NIC list, ICMP ping |
+| `native/net.rs` | Adapter byte counters (GetIfTable2), real-NIC filter, ICMP ping |
 | `native/time.rs` | Local time + DST-aware UTC offset + monotonic tick |
 | `ui/gdip.rs` | RAII GDI+ wrappers — the only unsafe-heavy drawing zone |
 | `ui/window.rs` | Window-class/wndproc trampoline plumbing |

@@ -25,7 +25,6 @@ pub struct DataUsage {
     last_tick: u64,
     last_save: u64,
     dirty: bool,
-    iface: Option<String>,
 }
 
 fn file_path() -> PathBuf {
@@ -46,7 +45,6 @@ impl DataUsage {
             last_tick: 0,
             last_save: 0,
             dirty: false,
-            iface: None,
         }
     }
 
@@ -55,13 +53,6 @@ impl DataUsage {
             .ok()
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default();
-    }
-
-    pub fn set_interface(&mut self, id: Option<&str>) {
-        if id != self.iface.as_deref() {
-            self.iface = id.map(str::to_owned);
-            self.baseline.clear();
-        }
     }
 
     pub fn tick(&mut self, rows: &[IfRow]) {
@@ -73,7 +64,7 @@ impl DataUsage {
         }
         self.last_tick = now;
 
-        let (dr, dt) = net_speed::delta(&mut self.baseline, self.iface.as_deref(), rows);
+        let (dr, dt) = net_speed::delta(&mut self.baseline, rows);
         if dr > 0 || dt > 0 {
             let day = today_key();
             let e = self.days.entry(day).or_default();

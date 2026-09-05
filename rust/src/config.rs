@@ -35,12 +35,11 @@ pub struct AppConfig {
     pub theme: String, // Auto | Dark | Light | Midnight | Slate | Warm
     pub monitor_device_name: Option<String>,
     pub hide_on_fullscreen: bool,
-    // Net-meter fields (speed/ping/data-usage tail + NIC picker).
+    // Net-meter fields (speed/ping/data-usage tail).
     pub show_net_speed: bool,
     pub show_ping: bool,
     pub ping_host: String,
     pub ping_tcp: bool,
-    pub net_interface_id: Option<String>,
     pub compact_meters: bool,
     pub track_data_usage: bool,
     pub show_data_usage: bool,
@@ -93,7 +92,6 @@ impl Default for AppConfig {
             show_ping: false,
             ping_host: "1.1.1.1".into(),
             ping_tcp: false,
-            net_interface_id: None,
             compact_meters: false,
             track_data_usage: false,
             show_data_usage: false,

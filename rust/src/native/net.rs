@@ -1,5 +1,5 @@
-//! Per-adapter byte counters (GetIfTable2), NIC enumeration for the settings picker,
-//! and a one-shot ICMP echo. Replaces the C# System.Net.NetworkInformation surface.
+//! Per-adapter byte counters (GetIfTable2) and a one-shot ICMP echo.
+//! Replaces the C# System.Net.NetworkInformation surface.
 
 use std::ffi::c_void;
 use std::net::ToSocketAddrs;
@@ -11,8 +11,10 @@ use windows::Win32::NetworkManagement::IpHelper::{
 };
 
 // IF_TYPE values (iftypes.h); the windows crate doesn't surface these as constants.
-const IF_TYPE_SOFTWARE_LOOPBACK: u32 = 24;
-const IF_TYPE_TUNNEL: u32 = 131;
+const IF_TYPE_ETHERNET: u32 = 6;
+const IF_TYPE_IEEE80211: u32 = 71;
+const IF_TYPE_WWANPP: u32 = 243;
+const IF_TYPE_WWANPP2: u32 = 244;
 const IF_OPER_STATUS_UP: i32 = 1;
 
 /// One network adapter's octet counters and identity, as needed for metering.
@@ -22,8 +24,37 @@ pub struct IfRow {
     pub if_type: u32,
     pub up: bool,
     pub filter: bool, // WFP callout pseudo-interface -> would double-count
+    pub hardware: bool, // NDIS HardwareInterface: backed by a real miniport
     pub rx: u64,
     pub tx: u64,
+}
+
+impl IfRow {
+    /// Ethernet, Wi-Fi, or mobile broadband by interface type. Coarser than the hardware
+    /// flag — Wi-Fi Direct and Hyper-V virtual adapters also report type 6.
+    pub fn is_physical(&self) -> bool {
+        matches!(
+            self.if_type,
+            IF_TYPE_ETHERNET | IF_TYPE_IEEE80211 | IF_TYPE_WWANPP | IF_TYPE_WWANPP2
+        )
+    }
+
+    fn usable(&self) -> bool {
+        self.up && !self.filter
+    }
+}
+
+/// The adapters whose counters may be summed. A VPN TUN, a Wi-Fi Direct virtual, or a
+/// Hyper-V vSwitch carries the same bytes as the NIC beneath it, so counting both reports
+/// roughly double the real transfer; NDIS's HardwareInterface flag is the only field that
+/// separates them (`if_type` does not — several of them report plain ethernet).
+///
+/// If nothing reports the flag, fall back to the interface-type allowlist so the meters
+/// still show something rather than a permanent zero.
+pub fn metered(rows: &[IfRow]) -> impl Iterator<Item = &IfRow> {
+    let any_hw = rows.iter().any(|r| r.usable() && r.hardware);
+    rows.iter()
+        .filter(move |r| r.usable() && if any_hw { r.hardware } else { r.is_physical() })
 }
 
 fn guid_braces(g: &GUID) -> String {
@@ -50,14 +81,15 @@ pub fn snapshot() -> Vec<IfRow> {
         let n = (*table).NumEntries as usize;
         let rows = std::slice::from_raw_parts((*table).Table.as_ptr(), n);
         for r in rows {
-            // Bit 1 of the InterfaceAndOperStatusFlags bitfield is FilterInterface.
-            let filter = (r.InterfaceAndOperStatusFlags._bitfield & 0x02) != 0;
+            // InterfaceAndOperStatusFlags bitfield: bit 0 HardwareInterface, bit 1 FilterInterface.
+            let flags = r.InterfaceAndOperStatusFlags._bitfield;
             out.push(IfRow {
                 guid: guid_braces(&r.InterfaceGuid),
                 alias: wsz(&r.Alias),
                 if_type: r.Type,
                 up: r.OperStatus.0 == IF_OPER_STATUS_UP,
-                filter,
+                filter: (flags & 0x02) != 0,
+                hardware: (flags & 0x01) != 0,
                 rx: r.InOctets,
                 tx: r.OutOctets,
             });
@@ -65,21 +97,6 @@ pub fn snapshot() -> Vec<IfRow> {
         FreeMibTable(table as *const c_void);
     }
     out
-}
-
-/// (friendly name, guid) for the settings NIC combo. Only currently-up real adapters: drops
-/// loopback, the WFP/QoS/NDIS filter pseudo-interfaces GetIfTable2 lists, and the Teredo/6to4/
-/// IP-HTTPS transition tunnels — none of which .NET's GetAllNetworkInterfaces ever showed.
-pub fn adapters() -> Vec<(String, String)> {
-    snapshot()
-        .into_iter()
-        .filter(|r| {
-            r.up && !r.filter
-                && r.if_type != IF_TYPE_SOFTWARE_LOOPBACK
-                && r.if_type != IF_TYPE_TUNNEL
-        })
-        .map(|r| (r.alias, r.guid))
-        .collect()
 }
 
 /// Round-trip time in ms to `host` via kernel ICMP, or -1 on any failure. Blocks up to `timeout_ms`.

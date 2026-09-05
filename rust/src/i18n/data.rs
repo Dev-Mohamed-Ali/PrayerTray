@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 145] = [
+pub static UI: [(&str, [&str; LANGS]); 142] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -69,8 +69,6 @@ pub static UI: [(&str, [&str; LANGS]); 145] = [
     ("highLat.MidNight", ["Middle of the night", "منتصف الليل", "Milieu de la nuit", "Gece yarısı", "نصف شب", "Tengah malam"]),
     ("highLat.None", ["None", "بدون", "Aucune", "Yok", "کوئی نہیں", "Tidak ada"]),
     ("highLat.OneSeventh", ["One-seventh of the night", "سُبع الليل", "Un septième de la nuit", "Gecenin yedide biri", "رات کا ساتواں حصہ", "Sepertujuh malam"]),
-    ("iface.all", ["All interfaces", "كل الواجهات", "Toutes les interfaces", "Tüm arabirimler", "تمام انٹرفیس", "Semua antarmuka"]),
-    ("iface.missing", ["(disconnected adapter)", "(محول غير متصل)", "(carte déconnectée)", "(bağlı olmayan bağdaştırıcı)", "(منقطع اڈاپٹر)", "(adaptor terputus)"]),
     ("label.asr", ["Asr:", "العصر:", "Asr :", "İkindi:", "عصر:", "Asar:"]),
     ("label.azan", ["Azan:", "الأذان:", "Adhan :", "Ezan:", "اذان:", "Azan:"]),
     ("label.azanFile", ["Azan file:", "ملف الأذان:", "Fichier adhan :", "Ezan dosyası:", "اذان فائل:", "Berkas azan:"]),
@@ -86,7 +84,6 @@ pub static UI: [(&str, [&str; LANGS]); 145] = [
     ("label.method", ["Method:", "الطريقة:", "Méthode :", "Yöntem:", "طریقہ:", "Metode:"]),
     ("label.minutesBefore", ["Minutes before:", "الدقائق قبل:", "Minutes avant :", "Önceki dakika:", "کتنے منٹ پہلے:", "Menit sebelum:"]),
     ("label.monitor", ["Monitor:", "الشاشة:", "Écran :", "Ekran:", "اسکرین:", "Monitor:"]),
-    ("label.netInterface", ["Network interface", "واجهة الشبكة", "Interface réseau", "Ağ arabirimi", "نیٹ ورک انٹرفیس", "Antarmuka jaringan"]),
     ("label.pasteResult", ["Paste result:", "لصق النتيجة:", "Coller le résultat :", "Sonucu yapıştır:", "نتیجہ پیسٹ کریں:", "Tempel hasil:"]),
     ("label.pickMap", ["Pick on map:", "اختيار على الخريطة:", "Choisir sur la carte :", "Haritada seç:", "نقشے پر منتخب کریں:", "Pilih di peta:"]),
     ("label.pingHost", ["Ping host", "مضيف Ping", "Hôte ping", "Ping sunucusu", "پنگ ہوسٹ", "Host ping"]),

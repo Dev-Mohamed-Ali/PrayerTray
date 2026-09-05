@@ -25,7 +25,6 @@ const CSHARP_CONFIG: &str = r#"{
   "ShowPing": true,
   "PingHost": "8.8.8.8",
   "PingTcp": true,
-  "NetInterfaceId": "{ABC-123}",
   "CompactMeters": true,
   "TrackDataUsage": true,
   "ShowDataUsage": false,
@@ -61,7 +60,6 @@ fn reads_csharp_config_and_sanitizes() {
     assert_eq!(cfg.isha_adjust, 60, "sanitize clamps 90 -> 60");
     assert!(cfg.use24_hour);
     assert_eq!(cfg.monitor_device_name.as_deref(), Some("\\\\.\\DISPLAY2"));
-    assert_eq!(cfg.net_interface_id.as_deref(), Some("{ABC-123}"));
     assert_eq!(cfg.timezone_hours, 2.0);
     assert_eq!(cfg.language, "ar");
     assert_eq!(cfg.hijri_adjust, -1);
