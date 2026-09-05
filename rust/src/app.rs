@@ -300,6 +300,7 @@ impl App {
         self.cfg.show_net_speed
             || self.cfg.show_ping
             || self.cfg.show_sys_meters
+            || self.cfg.show_vpn
             || (self.cfg.track_data_usage && self.cfg.show_data_usage)
     }
 
@@ -342,6 +343,10 @@ impl App {
         }
         if self.cfg.rotate_meters && segs.len() > 1 {
             segs = vec![Self::rotated(&segs, self.rot)];
+        }
+        // Appended after the rotation so the indicator is always visible, never a turn.
+        if self.cfg.show_vpn && net::default_route_is_tunnel(rows) {
+            segs.push(("VPN".into(), "VPN".into()));
         }
         if let Some(w) = &mut self.widget {
             w.set_net(segs);

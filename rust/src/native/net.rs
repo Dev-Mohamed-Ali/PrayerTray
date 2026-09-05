@@ -6,8 +6,8 @@ use std::net::ToSocketAddrs;
 use windows::core::GUID;
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::NetworkManagement::IpHelper::{
-    FreeMibTable, GetIfTable2, IcmpCloseHandle, IcmpCreateFile, IcmpSendEcho, ICMP_ECHO_REPLY,
-    MIB_IF_TABLE2,
+    FreeMibTable, GetBestInterface, GetIfTable2, IcmpCloseHandle, IcmpCreateFile, IcmpSendEcho,
+    ICMP_ECHO_REPLY, MIB_IF_TABLE2,
 };
 
 // IF_TYPE values (iftypes.h); the windows crate doesn't surface these as constants.
@@ -21,6 +21,7 @@ const IF_OPER_STATUS_UP: i32 = 1;
 pub struct IfRow {
     pub guid: String, // braced, e.g. "{XXXXXXXX-...}" — matches .NET NetworkInterface.Id
     pub alias: String,
+    pub index: u32,
     pub if_type: u32,
     pub up: bool,
     pub filter: bool, // WFP callout pseudo-interface -> would double-count
@@ -57,6 +58,27 @@ pub fn metered(rows: &[IfRow]) -> impl Iterator<Item = &IfRow> {
         .filter(move |r| r.usable() && if any_hw { r.hardware } else { r.is_physical() })
 }
 
+/// True when interface `idx` carries the default route but is not real hardware — a VPN or
+/// proxy tunnel is taking the machine's traffic. Split from the FFI so it can be tested.
+pub fn is_tunnel_route(rows: &[IfRow], idx: u32) -> bool {
+    // Where nothing reports the hardware flag it tells us nothing here, so claim nothing.
+    if !rows.iter().any(|r| r.usable() && r.hardware) {
+        return false;
+    }
+    rows.iter().any(|r| r.index == idx && r.usable() && !r.hardware)
+}
+
+/// Whether traffic currently leaves through a tunnel. Answered entirely from local routing
+/// state — no packet is sent.
+pub fn default_route_is_tunnel(rows: &[IfRow]) -> bool {
+    let mut idx = 0u32;
+    // 0.0.0.0 -> whichever interface owns the default route.
+    if unsafe { GetBestInterface(0, &mut idx) } != 0 {
+        return false;
+    }
+    is_tunnel_route(rows, idx)
+}
+
 fn guid_braces(g: &GUID) -> String {
     let d4 = g.data4;
     format!(
@@ -86,6 +108,7 @@ pub fn snapshot() -> Vec<IfRow> {
             out.push(IfRow {
                 guid: guid_braces(&r.InterfaceGuid),
                 alias: wsz(&r.Alias),
+                index: r.InterfaceIndex,
                 if_type: r.Type,
                 up: r.OperStatus.0 == IF_OPER_STATUS_UP,
                 filter: (flags & 0x02) != 0,

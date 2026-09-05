@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 143] = [
+pub static UI: [(&str, [&str; LANGS]); 144] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -52,6 +52,7 @@ pub static UI: [(&str, [&str; LANGS]); 143] = [
     ("chk.showEvents", ["Show Islamic events & special days", "إظهار المناسبات والأيام المميزة", "Afficher les événements islamiques", "İslami önemli günleri göster", "اسلامی مواقع دکھائیں", "Tampilkan hari besar Islam"]),
     ("chk.showHijri", ["Show Hijri date", "إظهار التاريخ الهجري", "Afficher la date hégirienne", "Hicri tarihi göster", "ہجری تاریخ دکھائیں", "Tampilkan tanggal Hijriah"]),
     ("chk.showUsage", ["Show today's data total in the pill", "إظهار إجمالي اليوم في الشريط", "Afficher le total du jour dans la pastille", "Bugünün toplamını çubukta göster", "آج کا کل ڈیٹا پٹی میں دکھائیں", "Tampilkan total hari ini di pil"]),
+    ("chk.showVpn", ["Show when a VPN carries my traffic", "إظهار مرور البيانات عبر شبكة افتراضية", "Indiquer quand un VPN achemine le trafic", "Trafiği bir VPN taşıdığında göster", "جب وی پی این ٹریفک لے جائے تو دکھائیں", "Tampilkan saat VPN membawa lalu lintas"]),
     ("chk.sunnahFast", ["Remind me about Sunnah fasting (eve before)", "تذكيري بصيام السنة (مساء اليوم السابق)", "Me rappeler le jeûne surérogatoire (la veille)", "Nafile orucu hatırlat (bir gece önce)", "نفلی روزے کی یاد دہانی (ایک رات پہلے)", "Ingatkan puasa sunah (malam sebelumnya)"]),
     ("chk.sysMeters", ["Show CPU and memory", "إظهار المعالج والذاكرة", "Afficher le processeur et la mémoire", "İşlemci ve belleği göster", "سی پی یو اور میموری دکھائیں", "Tampilkan CPU dan memori"]),
     ("chk.trackUsage", ["Track data usage", "تتبع استهلاك البيانات", "Suivre la consommation de données", "Veri kullanımını izle", "ڈیٹا استعمال ٹریک کریں", "Lacak penggunaan data"]),

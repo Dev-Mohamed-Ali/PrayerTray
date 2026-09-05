@@ -10,12 +10,12 @@ use std::collections::{BTreeMap, HashMap};
 
 /// A row with no HardwareInterface flag — exercises the interface-type fallback.
 fn row(guid: &str, if_type: u32, up: bool, filter: bool, rx: u64, tx: u64) -> IfRow {
-    IfRow { guid: guid.into(), alias: "nic".into(), if_type, up, filter, hardware: false, rx, tx }
+    IfRow { guid: guid.into(), alias: "nic".into(), index: 0, if_type, up, filter, hardware: false, rx, tx }
 }
 
 /// A row NDIS reports as real hardware.
 fn hw(guid: &str, if_type: u32, up: bool, rx: u64, tx: u64) -> IfRow {
-    IfRow { guid: guid.into(), alias: "nic".into(), if_type, up, filter: false, hardware: true, rx, tx }
+    IfRow { guid: guid.into(), alias: "nic".into(), index: 0, if_type, up, filter: false, hardware: true, rx, tx }
 }
 
 const ETH: u32 = 6;
@@ -198,4 +198,34 @@ fn usage_json_is_csharp_compatible() {
     // Round-trips back to the same field names.
     let out = serde_json::to_string(&map).unwrap();
     assert!(out.contains(r#""Rx":10"#) && out.contains(r#""Tx":20"#));
+}
+
+fn at(mut r: IfRow, index: u32) -> IfRow {
+    r.index = index;
+    r
+}
+
+/// The whole point of the indicator: the default route belongs to the TUN, not the NIC.
+#[test]
+fn tunnel_route_is_detected_when_the_vpn_owns_the_default_route() {
+    let rows = [at(hw("{eth}", ETH, true, 0, 0), 18), at(row("{vpn}", VIRTUAL, true, false, 0, 0), 7)];
+    assert!(prayertray::native::net::is_tunnel_route(&rows, 7));
+    assert!(!prayertray::native::net::is_tunnel_route(&rows, 18), "the real NIC is not a tunnel");
+}
+
+/// A down or filter-pseudo interface must never be read as an active tunnel.
+#[test]
+fn tunnel_route_ignores_unusable_rows() {
+    let mut down = row("{vpn}", VIRTUAL, false, false, 0, 0);
+    down.index = 7;
+    let rows = [at(hw("{eth}", ETH, true, 0, 0), 18), down];
+    assert!(!prayertray::native::net::is_tunnel_route(&rows, 7));
+}
+
+/// On a machine where nothing reports the hardware flag the check has no basis, so it must
+/// stay silent rather than call every adapter a tunnel.
+#[test]
+fn tunnel_route_says_nothing_without_the_hardware_flag() {
+    let rows = [at(row("{a}", ETH, true, false, 0, 0), 18), at(row("{b}", VIRTUAL, true, false, 0, 0), 7)];
+    assert!(!prayertray::native::net::is_tunnel_route(&rows, 7));
 }
