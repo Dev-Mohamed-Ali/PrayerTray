@@ -45,7 +45,6 @@ pub struct Popup {
     event: String,
     fast: String,
     usage: String,
-    work: String,
     countdown: String,
     next_label: String,
     rows: Vec<Row>,
@@ -76,7 +75,6 @@ impl Popup {
             event: String::new(),
             fast: String::new(),
             usage: String::new(),
-            work: String::new(),
             countdown: String::new(),
             next_label: String::new(),
             rows: Vec::new(),
@@ -154,7 +152,6 @@ impl Popup {
         event: &str,
         fast: &str,
         usage: &str,
-        work: &str,
     ) {
         self.widget_rect = widget_rect;
         self.anchor_right = anchor_right;
@@ -164,15 +161,13 @@ impl Popup {
         self.event = event.into();
         self.fast = fast.into();
         self.usage = usage.into();
-        self.work = work.into();
         self.countdown = countdown.into();
         self.next_label = rows.iter().find(|r| r.is_next).map(|r| r.label.clone()).unwrap_or_default();
         self.rows = rows;
 
         self.width = scaled(268);
         let row_h = scaled(38);
-        let footer_lines = i32::from(!self.usage.is_empty()) + i32::from(!self.work.is_empty());
-        let footer = footer_lines * scaled(22);
+        let footer = i32::from(!self.usage.is_empty()) * scaled(22);
         self.height = self.header_h() + self.rows.len() as i32 * row_h + footer + scaled(16);
         self.position();
         self.invalidate();
@@ -377,18 +372,14 @@ impl Popup {
             y += row_h;
         }
 
-        for line in [&self.usage, &self.work] {
-            if line.is_empty() {
-                continue;
-            }
+        if !self.usage.is_empty() {
             g.draw_string(
-                line,
+                &self.usage,
                 &f_date,
                 &dim,
                 gdip::rectf(pad, y as f32 + scaled(4) as f32, w - 2.0 * pad, scaled(18) as f32),
                 &sf_hdr,
             );
-            y += scaled(22);
         }
     }
 

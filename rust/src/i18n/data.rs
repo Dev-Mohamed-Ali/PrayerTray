@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 154] = [
+pub static UI: [(&str, [&str; LANGS]); 145] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -54,7 +54,6 @@ pub static UI: [(&str, [&str; LANGS]); 154] = [
     ("chk.showUsage", ["Show today's data total in the pill", "إظهار إجمالي اليوم في الشريط", "Afficher le total du jour dans la pastille", "Bugünün toplamını çubukta göster", "آج کا کل ڈیٹا پٹی میں دکھائیں", "Tampilkan total hari ini di pil"]),
     ("chk.sunnahFast", ["Remind me about Sunnah fasting (eve before)", "تذكيري بصيام السنة (مساء اليوم السابق)", "Me rappeler le jeûne surérogatoire (la veille)", "Nafile orucu hatırlat (bir gece önce)", "نفلی روزے کی یاد دہانی (ایک رات پہلے)", "Ingatkan puasa sunah (malam sebelumnya)"]),
     ("chk.trackUsage", ["Track data usage", "تتبع استهلاك البيانات", "Suivre la consommation de données", "Veri kullanımını izle", "ڈیٹا استعمال ٹریک کریں", "Lacak penggunaan data"]),
-    ("chk.trackWork", ["Track work hours", "", "", "", "", ""]),
     ("chk.use24", ["Use 24-hour clock", "نظام 24 ساعة", "Format 24 heures", "24 saat biçimi", "24 گھنٹے کا نظام", "Gunakan format 24 jam"]),
     ("city.myLocation", ["My location", "موقعي", "Ma position", "Konumum", "میرا مقام", "Lokasi saya"]),
     ("combo.customFile", ["Custom file…", "ملف مخصص…", "Fichier perso…", "Özel dosya…", "حسب ضرورت فائل…", "Berkas khusus…"]),
@@ -99,15 +98,12 @@ pub static UI: [(&str, [&str; LANGS]); 154] = [
     ("lang.auto", ["System default", "افتراضي النظام", "Par défaut du système", "Sistem varsayılanı", "سسٹم ڈیفالٹ", "Bawaan sistem"]),
     ("menu.checkUpdates", ["Check for updates", "التحقق من التحديثات", "Rechercher des mises à jour", "Güncellemeleri denetle", "اپڈیٹس چیک کریں", "Periksa pembaruan"]),
     ("menu.dataUsage", ["Data usage…", "استهلاك البيانات…", "Consommation de données…", "Veri kullanımı…", "ڈیٹا استعمال…", "Penggunaan data…"]),
-    ("menu.endWork", ["End work ({0})", "", "", "", "", ""]),
     ("menu.exit", ["Exit", "خروج", "Quitter", "Çıkış", "خروج", "Keluar"]),
     ("menu.refresh", ["Refresh now", "تحديث الآن", "Actualiser", "Şimdi yenile", "ابھی تازہ کریں", "Segarkan sekarang"]),
     ("menu.settings", ["Settings…", "الإعدادات…", "Paramètres…", "Ayarlar…", "ترتیبات…", "Pengaturan…"]),
     ("menu.showTimes", ["Show times", "عرض الأوقات", "Afficher les horaires", "Vakitleri göster", "اوقات دکھائیں", "Tampilkan waktu"]),
-    ("menu.startWork", ["Start work", "", "", "", "", ""]),
     ("menu.startup", ["Start with Windows", "التشغيل مع ويندوز", "Démarrer avec Windows", "Windows ile başlat", "ونڈوز کے ساتھ شروع کریں", "Mulai bersama Windows"]),
     ("menu.stopSound", ["Stop sound", "إيقاف الصوت", "Arrêter le son", "Sesi durdur", "آواز بند کریں", "Hentikan suara"]),
-    ("menu.workHours", ["Work hours…", "", "", "", "", ""]),
     ("monitor.primary", [" — Primary", " — رئيسية", " — Principal", " — Birincil", " — بنیادی", " — Utama"]),
     ("msg.azanFile", ["Pick an azan audio file, or set Azan to Off.", "اختر ملف أذان صوتيًا، أو اضبط الأذان على إيقاف.", "Choisissez un fichier audio d'adhan, ou désactivez l'adhan.", "Bir ezan ses dosyası seçin veya Ezan'ı kapatın.", "اذان کی آڈیو فائل منتخب کریں، یا اذان بند کریں۔", "Pilih berkas audio azan, atau matikan Azan."]),
     ("msg.detectCaption", ["Detect location", "كشف الموقع", "Détecter la position", "Konum algıla", "مقام کا پتہ لگائیں", "Deteksi lokasi"]),
@@ -153,11 +149,6 @@ pub static UI: [(&str, [&str; LANGS]); 154] = [
     ("usage.today", ["Today: ↓ {0}   ↑ {1}", "اليوم: ↓ {0}   ↑ {1}", "Aujourd'hui : ↓ {0}   ↑ {1}", "Bugün: ↓ {0}   ↑ {1}", "آج: ↓ {0}   ↑ {1}", "Hari ini: ↓ {0}   ↑ {1}"]),
     ("usage.total", ["Total", "الإجمالي", "Total", "Toplam", "کل", "Total"]),
     ("usage.up", ["Up", "رفع", "Envoyé", "Yükleme", "اپ لوڈ", "Unggah"]),
-    ("work.date", ["Date", "", "", "", "", ""]),
-    ("work.resetConfirm", ["Clear all recorded work hours?", "", "", "", "", ""]),
-    ("work.title", ["Work hours", "", "", "", "", ""]),
-    ("work.today", ["Today: {0}", "", "", "", "", ""]),
-    ("work.worked", ["Worked", "", "", "", "", ""]),
 ];
 
 pub static PRAYERS: [(&str, [&str; LANGS]); 6] = [

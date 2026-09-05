@@ -6,5 +6,4 @@ pub mod settings;
 pub mod theme;
 pub mod usage;
 pub mod widget;
-pub mod work;
 pub mod window;

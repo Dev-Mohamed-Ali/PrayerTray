@@ -32,7 +32,9 @@ from a paper spec:
   C# tree, so these files (and the fixtures above) are now hand-maintained frozen goldens.
 
 Config compatibility is a hard contract: `%APPDATA%\PrayerTray\config.json`, PascalCase via serde,
-sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). The data-usage store
+sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). One exception:
+`TrackWorkHours` is dropped on save now that work-hours tracking is gone; unknown keys are ignored
+on load, so an older file still opens. The data-usage store
 (`%APPDATA%\PrayerTray\usage.json`, `{"yyyy-MM-dd":{"Rx":n,"Tx":n}}`, 90-day retention) is
 byte-compatible with the C# build's file too.
 
