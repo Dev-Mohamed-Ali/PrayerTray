@@ -20,7 +20,7 @@ use crate::ui::icon::{TrayIcon, WM_TRAY};
 use crate::ui::popup::{Popup, Row, WM_POPUP_MOVED, WM_POPUP_PIN};
 use crate::ui::settings::{self, SettingsHost, SettingsResult};
 use crate::ui::theme;
-use crate::ui::widget::{Widget, WM_WIDGET_CLICK, WM_WIDGET_MENU};
+use crate::ui::widget::{Widget, WM_WIDGET_CLICK, WM_WIDGET_MENU, WM_WIDGET_MOVED};
 use crate::ui::window::{self, WindowHandler};
 use std::collections::HashSet;
 use windows::core::w;
@@ -1179,6 +1179,11 @@ impl WindowHandler for App {
             WM_UPDATE_DOWNLOADED => {
                 let info = *unsafe { Box::from_raw(lparam.0 as *mut UpdateInfo) };
                 self.on_update_downloaded(wparam.0 != 0, info);
+                Some(LRESULT(0))
+            }
+            WM_WIDGET_MOVED => {
+                self.cfg.widget_offset = (wparam.0 as i32).clamp(0, 2000);
+                self.cfg.save();
                 Some(LRESULT(0))
             }
             WM_POPUP_MOVED => {

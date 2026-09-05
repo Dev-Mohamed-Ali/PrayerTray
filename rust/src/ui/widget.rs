@@ -14,11 +14,13 @@ use windows::Win32::Graphics::Gdi::{
     BeginPaint, CreateRoundRectRgn, EndPaint, InvalidateRect, SetWindowRgn, PAINTSTRUCT,
 };
 use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
-use windows::Win32::UI::Input::KeyboardAndMouse::{TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     DestroyWindow, GetCursorPos, IsWindowVisible, MoveWindow, PostMessageW,
     ShowWindow, EVENT_OBJECT_REORDER, EVENT_SYSTEM_FOREGROUND, SW_HIDE, SW_SHOWNA, WINEVENT_OUTOFCONTEXT,
-    WM_APP, WM_ERASEBKGND, WM_LBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_PAINT,
+    WM_APP, WM_ERASEBKGND, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_PAINT,
     WM_RBUTTONUP, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
 };
 
@@ -28,10 +30,15 @@ const WM_MOUSELEAVE: u32 = 0x02A3;
 pub const WM_WIDGET_CLICK: u32 = WM_APP + 2;
 /// Posted to the app window on pill right-click; cursor pos packed in lparam.
 pub const WM_WIDGET_MENU: u32 = WM_APP + 3;
+/// Posted to the app window after a drag; the new logical offset rides in wparam.
+pub const WM_WIDGET_MOVED: u32 = WM_APP + 9;
 /// Posted to the widget window by the win-event hook (raise/visibility check).
 const WM_RAISE: u32 = WM_APP + 10;
 
 const MA_NOACTIVATE: u32 = 3;
+
+/// Pixels of travel before a press counts as a drag rather than a click.
+const DRAG_SLOP: i32 = 4;
 
 // Hook callbacks carry no context; a single widget exists at a time.
 static HOOK_TARGET: AtomicIsize = AtomicIsize::new(0);
@@ -64,6 +71,8 @@ pub struct Widget {
     segs: Vec<(String, String)>, // (live text, worst-case template) per tail segment
     seg_slots: Vec<i32>,         // grow-only slot width per segment
     urgency: f32,                // 0 = window wide open, 1 = next prayer due
+    drag_from: Option<(i32, i32)>, // (cursor x, window x) at mouse-down; Some() = pressed
+    drag_moved: bool,            // travelled past the slop, so this is a drag not a click
     ref_digit: Option<char>,     // widest digit for the current basis (measured, not assumed)
     net_font_scale: f32,         // slot basis: cleared when this or the family changes
     net_family: String,
@@ -105,6 +114,8 @@ impl Widget {
             segs: Vec::new(),
             seg_slots: Vec::new(),
             urgency: 0.0,
+            drag_from: None,
+            drag_moved: false,
             ref_digit: None,
             net_font_scale: 0.0,
             net_family: String::new(),
@@ -389,7 +400,73 @@ impl Widget {
         self.position_core(false);
     }
 
+    /// The band the pill lives in: (strip rect, right edge, left edge). The right edge stops at
+    /// the tray cluster so the pill never lands under the clock.
+    fn strip(&self) -> Option<(RECT, i32, i32)> {
+        let screen = displays::by_device(self.device.as_deref())?;
+        let tb = taskbar::taskbar_for_device(self.device.as_deref());
+        let on_its_bar = tb
+            .and_then(displays::from_window)
+            .map(|m| m.device.eq_ignore_ascii_case(&screen.device))
+            .unwrap_or(false);
+        if on_its_bar {
+            let r = taskbar::window_rect(tb?)?;
+            if r.right <= r.left {
+                return None;
+            }
+            let tray_left = taskbar::tray_notify_left(tb?);
+            Some((r, if tray_left > 0 { tray_left } else { r.right }, r.left))
+        } else {
+            // No taskbar on this monitor -> float at its bottom.
+            let b = screen.bounds;
+            let h = self.s(40.0);
+            let r = RECT { left: b.left, top: b.bottom - h, right: b.right, bottom: b.bottom };
+            Some((r, b.right, b.left))
+        }
+    }
+
+    fn drag_to(&mut self, cursor_x: i32) {
+        let Some((start_cursor, start_window)) = self.drag_from else { return };
+        if !self.drag_moved && (cursor_x - start_cursor).abs() < DRAG_SLOP {
+            return; // still within slop: this may yet be a plain click
+        }
+        self.drag_moved = true;
+        let Some((strip, right_edge, left_edge)) = self.strip() else { return };
+        let x = (start_window + cursor_x - start_cursor)
+            .clamp(left_edge, (right_edge - self.w).max(left_edge));
+        let strip_h = strip.bottom - strip.top;
+        let y = strip.top + (strip_h - self.h) / 2;
+        unsafe {
+            let _ = MoveWindow(self.hwnd, x, y, self.w, self.h, true);
+        }
+        // position_core early-returns when its target equals last_rect, so it has to learn
+        // where the window actually went or the next tick would skip the correcting move.
+        self.last_rect = RECT { left: x, top: y, right: x + self.w, bottom: y + self.h };
+    }
+
+    /// Turn the dragged position back into the anchored, DPI-independent offset config stores.
+    fn commit_drag(&mut self) {
+        let Some((_, right_edge, left_edge)) = self.strip() else { return };
+        let px = if self.anchor_right {
+            right_edge - self.last_rect.left - self.w
+        } else {
+            self.last_rect.left - left_edge
+        };
+        self.offset = ((px as f32 / self.scale).round() as i32).clamp(0, 2000);
+        unsafe {
+            let _ = PostMessageW(
+                Some(self.app_hwnd),
+                WM_WIDGET_MOVED,
+                WPARAM(self.offset as usize),
+                LPARAM(0),
+            );
+        }
+    }
+
     fn position_core(&mut self, raise: bool) {
+        if self.drag_from.is_some() {
+            return; // the pointer owns the position until the button comes up
+        }
         let Some(screen) = displays::by_device(self.device.as_deref()) else { return };
         let tb = taskbar::taskbar_for_device(self.device.as_deref());
         let on_its_bar = tb
@@ -410,20 +487,7 @@ impl Widget {
             self.invalidate();
         }
 
-        let (strip, right_edge, left_edge) = if on_its_bar {
-            let Some(r) = taskbar::window_rect(tb.unwrap()) else { return };
-            if r.right <= r.left {
-                return;
-            }
-            let tray_left = taskbar::tray_notify_left(tb.unwrap());
-            let right = if tray_left > 0 { tray_left } else { r.right };
-            (r, right, r.left)
-        } else {
-            // No taskbar on this monitor -> float at its bottom.
-            let b = screen.bounds;
-            let h = self.s(40.0);
-            (RECT { left: b.left, top: b.bottom - h, right: b.right, bottom: b.bottom }, b.right, b.left)
-        };
+        let Some((strip, right_edge, left_edge)) = self.strip() else { return };
 
         let strip_h = strip.bottom - strip.top;
         self.h = self.s(32.0).min(strip_h - self.s(4.0));
@@ -584,7 +648,22 @@ impl WindowHandler for Widget {
                 self.paint();
                 Some(LRESULT(0))
             }
+            WM_LBUTTONDOWN => {
+                let mut pt = Default::default();
+                if unsafe { GetCursorPos(&mut pt) }.is_ok() {
+                    unsafe { SetCapture(self.hwnd) };
+                    self.drag_from = Some((pt.x, self.last_rect.left));
+                    self.drag_moved = false;
+                }
+                Some(LRESULT(0))
+            }
             WM_MOUSEMOVE => {
+                if self.drag_from.is_some() {
+                    let mut pt = Default::default();
+                    if unsafe { GetCursorPos(&mut pt) }.is_ok() {
+                        self.drag_to(pt.x);
+                    }
+                }
                 if !self.tracking {
                     self.track_leave();
                     self.tracking = true;
@@ -606,10 +685,22 @@ impl WindowHandler for Widget {
                 None
             }
             WM_LBUTTONUP => {
-                unsafe {
-                    let _ = PostMessageW(Some(self.app_hwnd), WM_WIDGET_CLICK, WPARAM(0), LPARAM(0));
+                let was_pressed = self.drag_from.take().is_some();
+                let dragged = self.drag_moved;
+                self.drag_moved = false;
+                if was_pressed {
+                    unsafe {
+                        let _ = ReleaseCapture();
+                    }
                 }
-                None
+                if dragged {
+                    self.commit_drag();
+                } else {
+                    unsafe {
+                        let _ = PostMessageW(Some(self.app_hwnd), WM_WIDGET_CLICK, WPARAM(0), LPARAM(0));
+                    }
+                }
+                Some(LRESULT(0))
             }
             WM_RBUTTONUP => {
                 let mut pt = Default::default();
