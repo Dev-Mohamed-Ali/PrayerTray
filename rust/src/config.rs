@@ -170,9 +170,8 @@ impl AppConfig {
     }
 
     pub fn save(&self) {
-        let _ = std::fs::create_dir_all(Self::dir());
         if let Ok(json) = serde_json::to_string_pretty(self) {
-            let _ = std::fs::write(Self::path(), json);
+            let _ = crate::util::write_atomic(&Self::path(), json.as_bytes());
         }
     }
 
@@ -228,9 +227,8 @@ impl AppState {
     }
 
     pub fn save(&self) {
-        let _ = std::fs::create_dir_all(AppConfig::dir());
         if let Ok(json) = serde_json::to_string(self) {
-            let _ = std::fs::write(Self::path(), json);
+            let _ = crate::util::write_atomic(&Self::path(), json.as_bytes());
         }
     }
 }

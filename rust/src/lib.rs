@@ -10,3 +10,4 @@ pub mod native;
 pub mod services;
 #[cfg(windows)]
 pub mod ui;
+pub mod util;

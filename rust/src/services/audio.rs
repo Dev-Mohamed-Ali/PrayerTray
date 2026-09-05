@@ -73,7 +73,7 @@ pub fn builtin_adhan_path(id: &str) -> Option<PathBuf> {
     };
     let out = temp_dir().join(format!("azan-{id}.mp3"));
     if !out.exists() {
-        std::fs::write(&out, bytes).ok()?;
+        crate::util::write_atomic(&out, bytes).ok()?;
     }
     Some(out)
 }
@@ -95,7 +95,7 @@ pub fn play_reminder(cfg: &AppConfig) {
 pub fn synth_path(id: &str) -> PathBuf {
     let out = temp_dir().join(format!("rem-{id}.wav"));
     if !out.exists() {
-        let _ = std::fs::write(&out, build_sound(id));
+        let _ = crate::util::write_atomic(&out, &build_sound(id));
     }
     out
 }

@@ -102,12 +102,18 @@ impl DataUsage {
     fn save(&mut self) {
         self.last_save = tick_count64(); // even on failure, retry at the normal cadence
         let cutoff = day_key_offset(KEEP_DAYS);
-        self.days.retain(|k, _| k.as_str() >= cutoff.as_str());
-        let _ = std::fs::create_dir_all(AppConfig::dir());
-        if let Ok(json) = serde_json::to_string(&self.days) {
-            if std::fs::write(file_path(), json).is_ok() {
-                self.dirty = false;
-            }
+        // Serialize the pruned view first: dropping the old days in memory before the write
+        // lands would discard them even when the write fails.
+        let kept: BTreeMap<&str, &Day> = self
+            .days
+            .iter()
+            .filter(|(k, _)| k.as_str() >= cutoff.as_str())
+            .map(|(k, d)| (k.as_str(), d))
+            .collect();
+        let Ok(json) = serde_json::to_string(&kept) else { return };
+        if crate::util::write_atomic(&file_path(), json.as_bytes()).is_ok() {
+            self.days.retain(|k, _| k.as_str() >= cutoff.as_str());
+            self.dirty = false;
         }
     }
 }
