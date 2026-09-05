@@ -11,6 +11,26 @@ pub const fn argb(r: u8, g: u8, b: u8) -> u32 {
     0xFF00_0000 | ((r as u32) << 16) | ((g as u32) << 8) | b as u32
 }
 
+/// Blend two 0xAARRGGBB colours. `t` is clamped, so callers need not.
+pub fn mix(a: u32, b: u32, t: f32) -> u32 {
+    let t = t.clamp(0.0, 1.0);
+    let channel = |shift: u32| {
+        let (from, to) = (((a >> shift) & 0xFF) as f32, ((b >> shift) & 0xFF) as f32);
+        ((from + (to - from) * t).round() as u32) << shift
+    };
+    0xFF00_0000 | channel(16) | channel(8) | channel(0)
+}
+
+/// good -> warn -> urgent as `t` runs 0..=1, for the closing prayer window.
+pub fn urgency(pal: &Palette, t: f32) -> u32 {
+    let t = t.clamp(0.0, 1.0);
+    if t < 0.5 {
+        mix(pal.good, pal.warn, t * 2.0)
+    } else {
+        mix(pal.warn, pal.urgent, (t - 0.5) * 2.0)
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Palette {
     pub bg: u32,
@@ -21,6 +41,8 @@ pub struct Palette {
     pub accent: u32,
     pub accent_soft: u32,
     pub good: u32,
+    pub warn: u32,
+    pub urgent: u32,
     pub is_dark: bool,
 }
 
@@ -33,6 +55,8 @@ pub const DARK: Palette = Palette {
     accent: argb(96, 205, 255),
     accent_soft: argb(38, 64, 78),
     good: argb(126, 224, 158),
+    warn: argb(240, 200, 110),
+    urgent: argb(240, 130, 120),
     is_dark: true,
 };
 
@@ -45,6 +69,8 @@ pub const LIGHT: Palette = Palette {
     accent: argb(0, 120, 200),
     accent_soft: argb(205, 230, 245),
     good: argb(30, 150, 80),
+    warn: argb(176, 124, 0),
+    urgent: argb(190, 45, 40),
     is_dark: false,
 };
 
@@ -57,6 +83,8 @@ pub const MIDNIGHT: Palette = Palette {
     accent: argb(120, 160, 255),
     accent_soft: argb(36, 48, 90),
     good: argb(120, 220, 170),
+    warn: argb(235, 200, 130),
+    urgent: argb(240, 130, 145),
     is_dark: true,
 };
 
@@ -69,6 +97,8 @@ pub const SLATE: Palette = Palette {
     accent: argb(130, 180, 210),
     accent_soft: argb(48, 62, 76),
     good: argb(130, 210, 165),
+    warn: argb(226, 196, 128),
+    urgent: argb(232, 130, 125),
     is_dark: true,
 };
 
@@ -81,6 +111,8 @@ pub const WARM: Palette = Palette {
     accent: argb(255, 180, 90),
     accent_soft: argb(78, 60, 38),
     good: argb(200, 210, 120),
+    warn: argb(245, 195, 105),
+    urgent: argb(240, 135, 105),
     is_dark: true,
 };
 
@@ -167,5 +199,39 @@ fn windows_uses_light_theme() -> bool {
         .is_ok();
         let _ = RegCloseKey(key);
         ok && ty == REG_DWORD && val != 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mix_hits_both_ends_and_the_middle() {
+        let (a, b) = (argb(0, 0, 0), argb(255, 255, 255));
+        assert_eq!(mix(a, b, 0.0), a);
+        assert_eq!(mix(a, b, 1.0), b);
+        assert_eq!(mix(a, b, 0.5), argb(128, 128, 128)); // .5 rounds away from zero
+        assert_eq!(mix(a, b, -3.0), a, "t is clamped for the caller");
+        assert_eq!(mix(a, b, 9.0), b);
+    }
+
+    #[test]
+    fn urgency_runs_good_to_warn_to_urgent() {
+        let p = DARK;
+        assert_eq!(urgency(&p, 0.0), p.good, "a wide-open window stays the normal colour");
+        assert_eq!(urgency(&p, 0.5), p.warn);
+        assert_eq!(urgency(&p, 1.0), p.urgent);
+        // Monotonic through the first half: the red channel only climbs toward warn.
+        let (q, h) = (urgency(&p, 0.25), urgency(&p, 0.4));
+        assert!((q >> 16) & 0xFF <= (h >> 16) & 0xFF);
+    }
+
+    #[test]
+    fn every_palette_defines_the_urgency_stops() {
+        for p in [DARK, LIGHT, MIDNIGHT, SLATE, WARM] {
+            assert_ne!(p.good, p.warn, "warn must be distinguishable from good");
+            assert_ne!(p.warn, p.urgent);
+        }
     }
 }

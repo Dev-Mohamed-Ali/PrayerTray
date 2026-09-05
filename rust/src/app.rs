@@ -44,6 +44,9 @@ const TIMER_DATA: usize = 2; // 15 s: render + notification checks
 /// Seconds each meter holds the shared tail slot when rotation is on.
 const ROTATE_SECS: u32 = 4;
 
+/// The countdown starts warming this long before the next prayer, and is fully urgent at it.
+const URGENT_SECS: i64 = 15 * 60;
+
 const CMD_SHOW_TIMES: usize = 1001;
 const CMD_REFRESH: usize = 1002;
 const CMD_STARTUP: usize = 1003;
@@ -465,6 +468,10 @@ impl App {
         let (key, at, countdown) = self.current_or_next();
         self.next_at = at;
         let label = key.map(i18n::prayer).unwrap_or("?");
+        // The countdown runs to the next prayer, which is also when the current window shuts.
+        let urgency = at
+            .map(|t| 1.0 - ((t - abs_now()).clamp(0, URGENT_SECS) as f32 / URGENT_SECS as f32))
+            .unwrap_or(0.0);
         let time_str = key
             .and_then(|k| self.time_of(k))
             .map(|ts| Self::format_time(ts, use24))
@@ -487,7 +494,7 @@ impl App {
         }
         let shown = Self::shown_countdown(&countdown);
         if let Some(w) = &mut self.widget {
-            w.set_data(label, &time_str, &shown);
+            w.set_data(label, &time_str, &shown, urgency);
         }
         if self.popup.as_ref().map(|p| p.visible()).unwrap_or(false) {
             self.show_popup();

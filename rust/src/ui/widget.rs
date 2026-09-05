@@ -63,6 +63,7 @@ pub struct Widget {
     count: String,
     segs: Vec<(String, String)>, // (live text, worst-case template) per tail segment
     seg_slots: Vec<i32>,         // grow-only slot width per segment
+    urgency: f32,                // 0 = window wide open, 1 = next prayer due
     ref_digit: Option<char>,     // widest digit for the current basis (measured, not assumed)
     net_font_scale: f32,         // slot basis: cleared when this or the family changes
     net_family: String,
@@ -103,6 +104,7 @@ impl Widget {
             count: "…".into(),
             segs: Vec::new(),
             seg_slots: Vec::new(),
+            urgency: 0.0,
             ref_digit: None,
             net_font_scale: 0.0,
             net_family: String::new(),
@@ -227,10 +229,12 @@ impl Widget {
         }
     }
 
-    pub fn set_data(&mut self, name: &str, time: &str, countdown: &str) {
+    /// `urgency` is 0.0 with the window wide open and 1.0 as it closes; it tints the countdown.
+    pub fn set_data(&mut self, name: &str, time: &str, countdown: &str, urgency: f32) {
         self.name = name.into();
         self.time = time.into();
         self.count = countdown.into();
+        self.urgency = urgency;
         self.resize_to_content();
         self.render_buffer();
         self.invalidate();
@@ -488,7 +492,7 @@ impl Widget {
             let accent = SolidBrush::new(pal.accent);
             let text = SolidBrush::new(pal.text);
             let dim = SolidBrush::new(pal.text_dim);
-            let good = SolidBrush::new(pal.good);
+            let good = SolidBrush::new(theme::urgency(&pal, self.urgency));
 
             let rect = |x: f32, w: f32| gdip::rectf(x, 0.0, w, hf);
 
