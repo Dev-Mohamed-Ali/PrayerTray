@@ -82,9 +82,7 @@ fn canon(v: &mut serde_json::Value) {
     }
 }
 
-/// The contract is that no C# field is ever dropped or renamed on the way back out. Rust-only
-/// settings added since the port are allowed to appear alongside them, so this is a subset check
-/// rather than an equality one.
+/// No C# field may be dropped or renamed; Rust-only settings may sit alongside them.
 #[test]
 fn roundtrip_preserves_every_csharp_field() {
     let cfg: AppConfig = serde_json::from_str(CSHARP_CONFIG).unwrap();
@@ -138,4 +136,22 @@ fn corrupt_config_falls_back_to_defaults() {
     std::fs::write(&p, "{not json").unwrap();
     let cfg = AppConfig::load_from(&p);
     assert_eq!(cfg.city, "Makkah");
+}
+
+/// reminder_sound_id lands in a filename (audio::synth_path), and on_import accepts arbitrary
+/// JSON into it, so sanitize() must reject anything that is not a known tone.
+#[test]
+fn imported_reminder_sound_id_cannot_escape_the_temp_directory() {
+    let hostile = r#"{"ReminderSoundId":"../../../Users/Public/x"}"#;
+    let cfg: AppConfig = serde_json::from_str(hostile).unwrap();
+    let mut cfg = cfg;
+    cfg.sanitize();
+    assert_eq!(cfg.reminder_sound_id, "chime");
+
+    // Every id the settings combo can produce must survive untouched.
+    for id in prayertray::config::REMINDER_SOUND_IDS {
+        let mut c = AppConfig { reminder_sound_id: id.into(), ..AppConfig::default() };
+        c.sanitize();
+        assert_eq!(c.reminder_sound_id, id);
+    }
 }

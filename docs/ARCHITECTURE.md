@@ -32,10 +32,12 @@ from a paper spec:
   C# tree, so these files (and the fixtures above) are now hand-maintained frozen goldens.
 
 Config compatibility is a hard contract: `%APPDATA%\PrayerTray\config.json`, PascalCase via serde,
-sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). Two exceptions, both
-one-way: `NetInterfaceId` (the NIC picker was removed — the meter now decides for itself) and
-`TrackWorkHours` are dropped on save. Unknown keys are ignored on load, so an older file still
-opens; a downgrade to v1 just loses those two settings.
+sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). The file has since
+diverged in both directions: `NetInterfaceId` and `TrackWorkHours` are dropped on save because both
+features are gone, and the Rust-only settings (`RotateMeters`, `ShowSysMeters`, `ShowVpn`, and
+`MuteWhenBusy` when opted out) are written alongside the C# ones. Unknown keys are ignored on load,
+so an older file still opens. What `tests/config_roundtrip.rs` guarantees is the part that still
+matters: no C# field is ever dropped or renamed on the way back out.
 
 Every store — `config.json`, `state.json`, `usage.json`, and the adhan/tone files cached under
 `%TEMP%` — is written through `util::write_atomic` (temp sibling, flush, rename). A plain
@@ -161,7 +163,8 @@ that row is not `HardwareInterface`, a VPN or proxy tunnel has the traffic. Read
 routing state, so it costs no packet. It is appended after the rotation rather than joining it — a
 state light that is only visible one turn in six is not a state light. The decision is split into
 `net::is_tunnel_route()` so it is testable without the FFI, and stays silent where no adapter
-reports the hardware flag, since there the bit distinguishes nothing.
+reports the hardware flag, since there the bit distinguishes nothing. `GetBestInterface`
+resolves the IPv4 default route only, so an IPv6-only tunnel reads as no tunnel.
 
 ## Releases
 

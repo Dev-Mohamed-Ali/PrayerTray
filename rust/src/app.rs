@@ -289,7 +289,7 @@ impl App {
         if meters {
             self.update_net_segments(&rows);
         } else if let Some(w) = &mut self.widget {
-            w.set_net(Vec::new()); // clears the tail after meters off (idempotent)
+            w.set_net(Vec::new(), Vec::new()); // clears the tail after meters off (idempotent)
         }
         if let Some(at) = self.next_at {
             let s = at - abs_now();
@@ -313,13 +313,12 @@ impl App {
         self.latency.set_host(&self.cfg.ping_host);
         if !self.has_pill_meters() {
             if let Some(w) = &mut self.widget {
-                w.set_net(Vec::new());
+                w.set_net(Vec::new(), Vec::new());
             }
         }
     }
 
-    /// Build the tail segments (down, up, ping, usage) with worst-case templates. With rotation
-    /// on they collapse to one shared slot, so enabling another meter never widens the pill.
+    /// Build the tail segments with their worst-case templates.
     fn update_net_segments(&mut self, rows: &[net::IfRow]) {
         let compact = self.cfg.compact_meters;
         let mut segs: Vec<(String, String)> = Vec::with_capacity(6);
@@ -344,7 +343,11 @@ impl App {
             segs.push((sys_meters::format_cpu(self.sys.cpu_percent()), "CPU 100%".into()));
             segs.push((sys_meters::format_ram(sys_meters::memory_percent()), "RAM 100%".into()));
         }
+        // The widget measures these to size the shared slot; picking a winner here would mean
+        // guessing rendered width from a string, which is what the v2.2.1 slot work removed.
+        let mut pool = Vec::new();
         if self.cfg.rotate_meters && segs.len() > 1 {
+            pool = segs.iter().map(|s| s.1.clone()).collect();
             segs = vec![Self::rotated(&segs, self.rot)];
         }
         // Appended after the rotation so the indicator is always visible, never a turn.
@@ -352,20 +355,13 @@ impl App {
             segs.push(("VPN".into(), "VPN".into()));
         }
         if let Some(w) = &mut self.widget {
-            w.set_net(segs);
+            w.set_net(segs, pool);
         }
     }
 
-    /// Whichever meter currently holds the slot. The template stays the widest of the whole set:
-    /// varying it per turn would trip set_net's re-seed and the pill would jump every rotation.
+    /// Whichever meter currently holds the shared slot.
     fn rotated(segs: &[(String, String)], rot: u32) -> (String, String) {
-        let tmpl = segs
-            .iter()
-            .map(|s| s.1.as_str())
-            .max_by_key(|t| t.chars().count())
-            .unwrap_or_default();
-        let i = (rot / ROTATE_SECS) as usize % segs.len();
-        (segs[i].0.clone(), tmpl.to_string())
+        segs[(rot / ROTATE_SECS) as usize % segs.len()].clone()
     }
 
     fn show_data_usage(&mut self) {
@@ -1183,7 +1179,11 @@ impl WindowHandler for App {
             }
             WM_WIDGET_MOVED => {
                 self.cfg.widget_offset = (wparam.0 as i32).clamp(0, 2000);
-                self.cfg.save();
+                // Settings mutates cfg in place for live preview and only writes on Save, so
+                // saving here would make Cancel unable to undo the rest of the dialog.
+                if !self.settings_open {
+                    self.cfg.save();
+                }
                 Some(LRESULT(0))
             }
             WM_POPUP_MOVED => {

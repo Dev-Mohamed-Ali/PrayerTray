@@ -58,8 +58,7 @@ pub fn metered(rows: &[IfRow]) -> impl Iterator<Item = &IfRow> {
         .filter(move |r| r.usable() && if any_hw { r.hardware } else { r.is_physical() })
 }
 
-/// True when interface `idx` carries the default route but is not real hardware — a VPN or
-/// proxy tunnel is taking the machine's traffic. Split from the FFI so it can be tested.
+/// True when interface `idx` carries the default route but is not real hardware.
 pub fn is_tunnel_route(rows: &[IfRow], idx: u32) -> bool {
     // Where nothing reports the hardware flag it tells us nothing here, so claim nothing.
     if !rows.iter().any(|r| r.usable() && r.hardware) {
@@ -68,8 +67,7 @@ pub fn is_tunnel_route(rows: &[IfRow], idx: u32) -> bool {
     rows.iter().any(|r| r.index == idx && r.usable() && !r.hardware)
 }
 
-/// Whether traffic currently leaves through a tunnel. Answered entirely from local routing
-/// state — no packet is sent.
+/// Whether traffic currently leaves through a tunnel. IPv4 default route only.
 pub fn default_route_is_tunnel(rows: &[IfRow]) -> bool {
     let mut idx = 0u32;
     // 0.0.0.0 -> whichever interface owns the default route.

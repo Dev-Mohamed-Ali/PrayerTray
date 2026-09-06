@@ -1,5 +1,6 @@
 //! CPU load and memory pressure, sampled on the same 1 s tick as the net meters.
 
+use crate::native::time::tick_count64;
 use windows::Win32::Foundation::FILETIME;
 use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 use windows::Win32::System::Threading::GetSystemTimes;
@@ -8,11 +9,15 @@ fn ticks(f: FILETIME) -> u64 {
     ((f.dwHighDateTime as u64) << 32) | f.dwLowDateTime as u64
 }
 
-/// Keeps the previous CPU time counters; deltas between calls give the load.
+/// A gap this long makes the previous counters useless: diffing across it reports the average
+/// over the whole pause, not the current load. Matches the net samplers' re-prime rule.
+const STALE_MS: u64 = 5_000;
+
 #[derive(Default)]
 pub struct SysMeters {
     idle: u64,
     busy: u64,
+    last: u64,
     primed: bool,
 }
 
@@ -33,9 +38,11 @@ impl SysMeters {
         let idle = ticks(idle_ft);
         let busy = (ticks(kernel_ft) + ticks(user_ft)).saturating_sub(idle);
         let (d_idle, d_busy) = (idle.saturating_sub(self.idle), busy.saturating_sub(self.busy));
-        let primed = self.primed;
+        let now = tick_count64();
+        let primed = self.primed && now.saturating_sub(self.last) <= STALE_MS;
         self.idle = idle;
         self.busy = busy;
+        self.last = now;
         self.primed = true;
         let span = d_idle + d_busy;
         if !primed || span == 0 {

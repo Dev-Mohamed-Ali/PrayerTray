@@ -9,6 +9,9 @@ fn is_true(b: &bool) -> bool {
     *b
 }
 
+/// Built-in reminder tones, plus the custom-file sentinel.
+pub const REMINDER_SOUND_IDS: [&str; 6] = ["chime", "bell", "ding", "beep", "double", "custom"];
+
 /// PopupX/PopupY unset sentinel (C# int.MinValue).
 pub const POPUP_UNSET: i32 = i32::MIN;
 /// TimezoneHours "use system timezone" sentinel.
@@ -146,6 +149,11 @@ impl AppConfig {
         self.hijri_adjust = self.hijri_adjust.clamp(-2, 2);
         self.reminder_minutes = self.reminder_minutes.clamp(1, 60);
         self.font_scale_pct = self.font_scale_pct.clamp(80, 150);
+        // Reaches the filesystem via audio::synth_path, so an imported config must not put
+        // path separators in it.
+        if !REMINDER_SOUND_IDS.contains(&self.reminder_sound_id.as_str()) {
+            self.reminder_sound_id = "chime".into();
+        }
     }
 
     pub fn dir() -> PathBuf {

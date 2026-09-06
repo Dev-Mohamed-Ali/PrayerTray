@@ -15,7 +15,7 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
+    GetKeyState, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT, VK_LBUTTON,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     DestroyWindow, GetCursorPos, IsWindowVisible, MoveWindow, PostMessageW,
@@ -25,6 +25,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 const WM_MOUSELEAVE: u32 = 0x02A3;
+const WM_CAPTURECHANGED: u32 = 0x0215;
 
 /// Posted to the app window on pill left-click (toggle popup).
 pub const WM_WIDGET_CLICK: u32 = WM_APP + 2;
@@ -71,6 +72,7 @@ pub struct Widget {
     segs: Vec<(String, String)>, // (live text, worst-case template) per tail segment
     seg_slots: Vec<i32>,         // grow-only slot width per segment
     urgency: f32,                // 0 = window wide open, 1 = next prayer due
+    slot_pool: Vec<String>,      // rotation candidates sharing segment 0's slot
     drag_from: Option<(i32, i32)>, // (cursor x, window x) at mouse-down; Some() = pressed
     drag_moved: bool,            // travelled past the slop, so this is a drag not a click
     ref_digit: Option<char>,     // widest digit for the current basis (measured, not assumed)
@@ -114,6 +116,7 @@ impl Widget {
             segs: Vec::new(),
             seg_slots: Vec::new(),
             urgency: 0.0,
+            slot_pool: Vec::new(),
             drag_from: None,
             drag_moved: false,
             ref_digit: None,
@@ -253,8 +256,10 @@ impl Widget {
 
     /// Live throughput/ping/usage segments, refreshed every second; fixed per-segment slots
     /// keep the pill width static. Each entry is (live text, worst-case template).
-    pub fn set_net(&mut self, segs: Vec<(String, String)>) {
-        if segs.len() == self.segs.len() {
+    pub fn set_net(&mut self, segs: Vec<(String, String)>, pool: Vec<String>) {
+        let pool_changed = pool != self.slot_pool;
+        self.slot_pool = pool;
+        if !pool_changed && segs.len() == self.segs.len() {
             let mut same = true;
             let mut tmpl_changed = false;
             #[allow(clippy::needless_range_loop)] // parallel index into self.segs and segs
@@ -299,8 +304,14 @@ impl Widget {
         let mut total = 0;
         for i in 0..self.segs.len() {
             if self.seg_slots[i] == 0 {
-                let tmpl = self.segs[i].1.clone();
-                self.seg_slots[i] = self.measure(&tmpl, f_main).ceil() as i32;
+                // Rotating meters share slot 0, so it must fit the widest of them as rendered.
+                let mut w = self.measure(&self.segs[i].1.clone(), f_main).ceil() as i32;
+                if i == 0 {
+                    for tmpl in self.slot_pool.clone() {
+                        w = w.max(self.measure(&tmpl, f_main).ceil() as i32);
+                    }
+                }
+                self.seg_slots[i] = w;
             }
             let text = self.segs[i].0.clone();
             let w = self.measure(&text, f_main).ceil() as i32;
@@ -427,13 +438,26 @@ impl Widget {
 
     fn drag_to(&mut self, cursor_x: i32) {
         let Some((start_cursor, start_window)) = self.drag_from else { return };
+        // A lost button-up (capture stolen, released off the pill) would otherwise leave the
+        // pill following a button-less cursor on every hover.
+        if unsafe { GetKeyState(VK_LBUTTON.0 as i32) } >= 0 {
+            self.end_drag(true);
+            return;
+        }
         if !self.drag_moved && (cursor_x - start_cursor).abs() < DRAG_SLOP {
             return; // still within slop: this may yet be a plain click
         }
         self.drag_moved = true;
         let Some((strip, right_edge, left_edge)) = self.strip() else { return };
-        let x = (start_window + cursor_x - start_cursor)
-            .clamp(left_edge, (right_edge - self.w).max(left_edge));
+        // widget_offset is clamped to 0..2000 logical units on save, so anything dropped beyond
+        // that would spring back on the next reposition. Stop the pill there instead.
+        let span = (2000.0 * self.scale) as i32;
+        let (lo, hi) = if self.anchor_right {
+            ((right_edge - self.w - span).max(left_edge), right_edge - self.w)
+        } else {
+            (left_edge, (left_edge + span).min(right_edge - self.w))
+        };
+        let x = (start_window + cursor_x - start_cursor).clamp(lo.min(hi), hi.max(lo));
         let strip_h = strip.bottom - strip.top;
         let y = strip.top + (strip_h - self.h) / 2;
         unsafe {
@@ -442,6 +466,22 @@ impl Widget {
         // position_core early-returns when its target equals last_rect, so it has to learn
         // where the window actually went or the next tick would skip the correcting move.
         self.last_rect = RECT { left: x, top: y, right: x + self.w, bottom: y + self.h };
+    }
+
+    /// Release the drag. `commit` persists where it landed; a cancelled drag leaves the offset
+    /// alone and lets the next reposition put the pill back.
+    fn end_drag(&mut self, commit: bool) {
+        let was_pressed = self.drag_from.take().is_some();
+        let moved = self.drag_moved;
+        self.drag_moved = false;
+        if was_pressed {
+            unsafe {
+                let _ = ReleaseCapture();
+            }
+        }
+        if commit && moved {
+            self.commit_drag();
+        }
     }
 
     /// Turn the dragged position back into the anchored, DPI-independent offset config stores.
@@ -685,22 +725,21 @@ impl WindowHandler for Widget {
                 None
             }
             WM_LBUTTONUP => {
-                let was_pressed = self.drag_from.take().is_some();
-                let dragged = self.drag_moved;
-                self.drag_moved = false;
-                if was_pressed {
-                    unsafe {
-                        let _ = ReleaseCapture();
-                    }
-                }
-                if dragged {
-                    self.commit_drag();
-                } else {
+                let click = self.drag_from.is_some() && !self.drag_moved;
+                self.end_drag(true);
+                if click {
                     unsafe {
                         let _ = PostMessageW(Some(self.app_hwnd), WM_WIDGET_CLICK, WPARAM(0), LPARAM(0));
                     }
                 }
                 Some(LRESULT(0))
+            }
+            // Capture can go without a button-up: hiding on fullscreen mid-drag, a menu taking it,
+            // the secure desktop. Without this the drag state sticks and position_core is dead.
+            WM_CAPTURECHANGED => {
+                self.drag_from = None;
+                self.drag_moved = false;
+                None
             }
             WM_RBUTTONUP => {
                 let mut pt = Default::default();
