@@ -8,7 +8,8 @@ Native Win32 written in Rust — **one ~3.5 MB exe, zero dependencies, no runtim
 times computed **fully offline** (PrayTimes.org algorithm). Idle footprint ~30 MB RAM.
 
 ```
-● Dhuhr  12:59 PM · 1:15 · ↓ 1.2 MB/s · ↑ 88 KB/s · 24 ms · Σ 3.4 GB
+● Dhuhr  12:59 PM · 1:15 · ↓ 1.2 MB/s      the meters take turns in one slot,
+● Dhuhr  12:59 PM · 1:15 · CPU 34%         so the pill never grows as you add them
 ```
 
 ## Download
@@ -22,7 +23,8 @@ set your location. Settings from a v1.x install are picked up automatically (sam
 ## Features
 
 - **Taskbar pill** — next prayer, time, and live countdown (per-second in the final minute). Dark,
-  rounded, DPI-aware, per-monitor.
+  rounded, DPI-aware, per-monitor. Drag it anywhere along the taskbar, and the countdown warms from
+  green through amber as the current prayer window runs out.
 - **Click for the day** — popup with all of today's times, next prayer highlighted. Pin it to keep it
   open and drag it anywhere.
 - **Reminders & azan** — optional toast + sound N minutes before each prayer; play a bundled adhan
@@ -31,10 +33,12 @@ set your location. Settings from a v1.x install are picked up automatically (sam
   presentation, or Do not disturb. The notification still arrives; the sound doesn't. Once you're
   free again you get a single silent "the azan was muted" line. On by default, one checkbox to
   turn off.
-- **Network meters** *(optional)* — live download/upload speed, latency (ICMP), and a
-  running per-day data total appended to the pill as a compact, fixed-width tail. A **Data usage**
-  window shows per-day history (kept 90 days). Adapters are picked automatically: only real NICs
-  are counted, so a VPN tunnel no longer doubles your totals.
+- **Meters in the pill** *(optional)* — download/upload speed, latency, per-day data total, and
+  CPU/memory. They rotate through a single fixed-width slot, so turning another one on never widens
+  the pill. A **Data usage** window shows per-day history (kept 90 days). Adapters are picked
+  automatically: only real NICs count, so a VPN tunnel no longer doubles your totals.
+- **VPN awareness** *(optional)* — a marker whenever a tunnel is carrying your traffic, read from
+  the local routing table. No packet is sent; prayer times stay fully offline either way.
 - **Rich notifications** — Action Center toasts, tray balloons as fallback.
 - **Stays in sync** — recomputes on clock/timezone change or resume-from-sleep.
 - **Hijri date & Islamic events** — Umm al-Qura date with a moon-sighting adjuster; special-day and

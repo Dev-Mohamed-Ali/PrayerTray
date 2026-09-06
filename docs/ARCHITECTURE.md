@@ -35,7 +35,14 @@ Config compatibility is a hard contract: `%APPDATA%\PrayerTray\config.json`, Pas
 sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). Two exceptions, both
 one-way: `NetInterfaceId` (the NIC picker was removed — the meter now decides for itself) and
 `TrackWorkHours` are dropped on save. Unknown keys are ignored on load, so an older file still
-opens; a downgrade to v1 just loses those two settings. The data-usage store
+opens; a downgrade to v1 just loses those two settings.
+
+Every store — `config.json`, `state.json`, `usage.json`, and the adhan/tone files cached under
+`%TEMP%` — is written through `util::write_atomic` (temp sibling, flush, rename). A plain
+`fs::write` truncates first, and each store fails differently when that is interrupted: a corrupt
+config silently loads as defaults, `usage.json` loses its 90-day history, and a torn mp3 is
+non-empty enough that `Path::exists` keeps approving it, leaving the adhan dead until `%TEMP%` is
+cleared. The data-usage store
 (`%APPDATA%\PrayerTray\usage.json`, `{"yyyy-MM-dd":{"Rx":n,"Tx":n}}`, 90-day retention) is
 byte-compatible with the C# build's file too.
 
@@ -117,9 +124,9 @@ swallowed azan is held in `App::muted_azan` and, once the user is free, surfaces
 catch-up line that expires at the next prayer time. Replaying the adhan an hour late would be worse
 than staying quiet, so it is never played retroactively.
 
-## Network metering
+## Pill meters
 
-The optional pill tail (down/up speed, ping, per-day data total) samples once per second on the
+The optional pill tail (down/up speed, ping, per-day data total, CPU/memory) samples once per second on the
 existing `TIMER_POS` tick — one `GetIfTable2` snapshot per tick feeds both the speed meters and the
 usage accumulator. Byte counters come from `MIB_IF_ROW2` (`InOctets`/`OutOctets`), keyed by the
 adapter's braced GUID. A shared `delta()` handles the subtle cases — a counter reset or a
@@ -138,9 +145,23 @@ zero. Measured end-to-end against a 10 MB download behind a VPN: 2.7× before, 1
 remainder is TCP/IP framing plus background traffic).
 
 Ping runs off-thread: a short-lived ICMP `IcmpSendEcho` at
-most every 3 s writes an `AtomicI32`; the next tick reads it, so the UI never blocks. The tail keeps
-a **stable width** via grow-only per-segment slots seeded from worst-case templates and reset only
-on a font/DPI-scale change — live values never make the pill jitter.
+most every 3 s writes an `AtomicI32`; the next tick reads it, so the UI never blocks. CPU comes from
+`GetSystemTimes` deltas — kernel time already counts idle, so busy is `(kernel - idle) + user` — and
+memory from `GlobalMemoryStatusEx`, both on the same tick.
+
+**Width.** Each segment draws in a grow-only slot seeded from a worst-case template and reset only
+on a font/DPI-scale change, so live values never make the pill jitter. On top of that the meters
+**rotate**: with more than one enabled they share a single slot and take turns, which is why adding
+a meter costs no width at all. The shared slot keeps the widest template of the whole set rather
+than the current turn's — `set_net` re-seeds every slot when a template changes, so varying it per
+turn would make the pill jump on each rotation.
+
+**Tunnel indicator.** `GetBestInterface(0.0.0.0)` names the interface owning the default route; if
+that row is not `HardwareInterface`, a VPN or proxy tunnel has the traffic. Read entirely from local
+routing state, so it costs no packet. It is appended after the rotation rather than joining it — a
+state light that is only visible one turn in six is not a state light. The decision is split into
+`net::is_tunnel_route()` so it is testable without the FFI, and stays silent where no adapter
+reports the hardware flag, since there the bit distinguishes nothing.
 
 ## Releases
 
@@ -170,13 +191,15 @@ release.
 | `native/time.rs` | Local time + DST-aware UTC offset + monotonic tick |
 | `ui/gdip.rs` | RAII GDI+ wrappers — the only unsafe-heavy drawing zone |
 | `ui/window.rs` | Window-class/wndproc trampoline plumbing |
-| `ui/widget.rs` | The overlay pill — owned by the taskbar, hooks, DPI, RTL |
+| `ui/widget.rs` | The overlay pill — owned by the taskbar, hooks, DPI, RTL, drag-to-position |
 | `ui/popup.rs` | Today's-times popup (pin, drag, saved position) |
 | `ui/usage.rs` | Data-usage dialog (SysListView32 per-day history) |
 | `ui/settings.rs` + `ui/controls.rs` | Settings dialog + themed native controls |
 | `ui/icon.rs` | Tray icon, tooltip, balloon fallback |
-| `ui/theme.rs` | Palettes (Dark/Light/Midnight/Slate/Warm) + Auto-follow |
+| `ui/theme.rs` | Palettes (Dark/Light/Midnight/Slate/Warm) + Auto-follow + colour blending |
 | `services/net_speed.rs` + `services/latency.rs` + `services/data_usage.rs` | Speed sampler, ping probe, per-day usage store |
+| `services/sys_meters.rs` | CPU load + memory pressure |
+| `util.rs` | Atomic file replace, shared by every persisted store |
 | `services/audio.rs` | Azan/reminder playback via MCI + synthesized tones |
 | `services/toast.rs` | Action Center toasts + AUMID shortcut |
 | `services/location.rs` | WinRT geolocation → IP fallback + map-link parsing |
