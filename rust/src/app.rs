@@ -320,24 +320,22 @@ impl App {
 
     /// Build the tail segments with their worst-case templates.
     fn update_net_segments(&mut self, rows: &[net::IfRow]) {
-        let compact = self.cfg.compact_meters;
         let mut segs: Vec<(String, String)> = Vec::with_capacity(6);
         if self.cfg.show_net_speed {
             let (down, up) = self.net_speed.sample(rows);
             let (d, u) = net_speed::format_parts(down, up);
             // One slot, two lines: down over up, so the pair costs a single reading's width.
-            let tmpl = if compact { "↓ 8.8 MB/s\n↑ 8.8 MB/s" } else { "↓ 88.8 MB/s\n↑ 88.8 MB/s" };
-            segs.push((format!("{d}\n{u}"), tmpl.into()));
+            segs.push((format!("{d}\n{u}"), "↓ 8.8 MB/s\n↑ 8.8 MB/s".into()));
         }
         if self.cfg.show_ping {
             let ms = self.latency.sample();
-            segs.push((latency::format(ms), if compact { "88 ms" } else { "888 ms" }.into()));
+            segs.push((latency::format(ms), "88 ms".into()));
         }
         if self.cfg.track_data_usage && self.cfg.show_data_usage {
             let (rx, tx) = self.data_usage.today();
             segs.push((
                 format!("Σ {}", data_usage::size(rx + tx)),
-                if compact { "Σ 888 MB" } else { "Σ 8.88 GB" }.into(),
+                "Σ 888 MB".into(),
             ));
         }
         if self.cfg.show_sys_meters {

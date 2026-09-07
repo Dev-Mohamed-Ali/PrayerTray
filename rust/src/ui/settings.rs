@@ -90,7 +90,6 @@ const ID_PING: i32 = 281;
 const ID_PINGHOST: i32 = 282;
 const ID_ROTATE: i32 = 283;
 const ID_SYSMETERS: i32 = 284;
-const ID_COMPACT: i32 = 285;
 const ID_TRACKUSAGE: i32 = 286;
 const ID_SHOWUSAGE: i32 = 287;
 const ID_VPN: i32 = 288;
@@ -488,8 +487,6 @@ impl Dialog {
         y += ROW_H;
         self.check_at(3, ID_VPN, i18n::t("chk.showVpn"), LBL_X, y, 380);
         y += ROW_H;
-        self.check_at(3, ID_COMPACT, i18n::t("chk.compactMeters"), LBL_X, y, 380);
-        y += ROW_H;
         self.check_at(3, ID_ROTATE, i18n::t("chk.rotateMeters"), LBL_X, y, 380);
         y += ROW_H;
         self.check_at(3, ID_TRACKUSAGE, i18n::t("chk.trackUsage"), LBL_X, y, 380);
@@ -609,7 +606,6 @@ impl Dialog {
         controls::set_text(self.item(ID_PINGHOST), &cfg.ping_host);
         controls::set_checked(self.item(ID_SYSMETERS), cfg.show_sys_meters);
         controls::set_checked(self.item(ID_VPN), cfg.show_vpn);
-        controls::set_checked(self.item(ID_COMPACT), cfg.compact_meters);
         controls::set_checked(self.item(ID_ROTATE), cfg.rotate_meters);
         controls::set_checked(self.item(ID_TRACKUSAGE), cfg.track_data_usage);
         controls::set_checked(self.item(ID_SHOWUSAGE), cfg.show_data_usage);
@@ -698,7 +694,6 @@ impl Dialog {
         c.ping_host = if ping_host.trim().is_empty() { "1.1.1.1".into() } else { ping_host.trim().to_string() };
         c.show_sys_meters = controls::checked(self.item(ID_SYSMETERS));
         c.show_vpn = controls::checked(self.item(ID_VPN));
-        c.compact_meters = controls::checked(self.item(ID_COMPACT));
         c.rotate_meters = controls::checked(self.item(ID_ROTATE));
         c.track_data_usage = controls::checked(self.item(ID_TRACKUSAGE));
         c.show_data_usage = controls::checked(self.item(ID_SHOWUSAGE));
@@ -761,7 +756,6 @@ impl Dialog {
         controls::enable(self.item(ID_SHOWUSAGE), track);
         let sysm = controls::checked(self.item(ID_SYSMETERS));
         let any_meter = netspeed || ping || sysm || (track && show_usage);
-        controls::enable(self.item(ID_COMPACT), any_meter);
         controls::enable(self.item(ID_ROTATE), any_meter);
 
         let states = [
@@ -1060,10 +1054,6 @@ impl Dialog {
                 ID_ROTATE => {
                     let v = controls::checked(self.item(ID_ROTATE));
                     self.live(|c| c.rotate_meters = v);
-                }
-                ID_COMPACT => {
-                    let v = controls::checked(self.item(ID_COMPACT));
-                    self.live(|c| c.compact_meters = v);
                 }
                 ID_TRACKUSAGE => {
                     let v = controls::checked(self.item(ID_TRACKUSAGE));
