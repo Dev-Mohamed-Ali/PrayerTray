@@ -87,6 +87,15 @@ impl DataUsage {
         self.days.iter().rev().map(|(k, d)| (k.clone(), d.rx, d.tx)).collect()
     }
 
+    /// Running total for the current calendar month (retention keeps 90 days, so it is complete).
+    pub fn month(&self) -> (u64, u64) {
+        let m = &today_key()[..7];
+        self.days
+            .iter()
+            .filter(|(k, _)| k.starts_with(m))
+            .fold((0, 0), |(r, t), (_, d)| (r + d.rx, t + d.tx))
+    }
+
     pub fn reset(&mut self) {
         self.days.clear();
         self.dirty = true;

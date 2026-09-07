@@ -66,6 +66,8 @@ pub struct Widget {
     pub anchor_right: bool,
     pub offset: i32,
     pub hide_on_fullscreen: bool,
+    /// 0 name+time+countdown, 1 time over countdown, 2 name+countdown, 3 countdown only.
+    pub head: u8,
     name: String,
     time: String,
     count: String,
@@ -110,6 +112,7 @@ impl Widget {
             anchor_right: true,
             offset: 12,
             hide_on_fullscreen: true,
+            head: 1,
             name: "—".into(),
             time: String::new(),
             count: "…".into(),
@@ -200,6 +203,13 @@ impl Widget {
 
     fn count_font(&self) -> Font {
         Font::new(&theme::family(), 13.0 * self.scale * theme::font_scale(), gdip::STYLE_BOLD)
+    }
+
+    /// The stacked head pair: same half-pill cap as a stacked tail segment.
+    fn head_font(&self, bold: bool) -> Font {
+        let px = (13.0 * self.scale * theme::font_scale()).min(self.h as f32 / 2.0 / 1.36);
+        let style = if bold { gdip::STYLE_BOLD } else { gdip::STYLE_REGULAR };
+        Font::new(&theme::family(), px.max(1.0), style)
     }
 
     /// A tail segment carrying a newline draws as two half-height lines sharing one slot,
@@ -326,8 +336,19 @@ impl Widget {
         self.invalidate();
     }
 
+    fn count_text(&self) -> String {
+        if self.head == 0 {
+            return self.count.clone();
+        }
+        format!("⏳ {}", self.count)
+    }
+
     fn left_text(&self) -> String {
-        format!("{}  {}", self.name, self.time).trim().to_string()
+        match self.head {
+            0 => format!("{}  {}", self.name, self.time).trim().to_string(),
+            3 => String::new(),
+            _ => self.name.clone(),
+        }
     }
 
     // Between-segment separator: [gap] · [gap], same rhythm as the main "·".
@@ -366,17 +387,23 @@ impl Widget {
     fn resize_to_content(&mut self) {
         self.refresh_slot_basis(); // reset count slot on font change even with an empty tail
         let f_main = self.main_font();
-        let f_count = self.count_font();
+        let f_count = if self.head == 1 { self.head_font(true) } else { self.count_font() };
         let w_left = self.measure(&self.left_text(), &f_main).ceil() as i32;
         // Digit-normalized so equal-length countdowns measure identically (no per-second ±1px
         // jitter); width still tracks the current text, so no reserved gap after short values.
-        let count_norm = self.norm_digits(&self.count.clone(), &f_count);
-        let w_count = self.measure(&count_norm, &f_count).ceil() as i32;
+        let count_txt = self.count_text();
+        let count_norm = self.norm_digits(&count_txt, &f_count);
+        let mut w_count = self.measure(&count_norm, &f_count).ceil() as i32;
+        if self.head == 1 {
+            // The stacked pair shares one slot, so the wider line governs.
+            let ft = self.head_font(false);
+            w_count = w_count.max(self.measure(&self.time.clone(), &ft).ceil() as i32);
+        }
         let w_net = self.net_width();
         // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
-        let tail = self.s(8.0)
-            + self.s(6.0)
-            + self.s(8.0)
+        let sep = if self.head == 0 { self.s(6.0) + self.s(8.0) } else { 0 };
+        let tail = if w_left > 0 { self.s(8.0) } else { 0 }
+            + sep
             + w_count
             + if w_net > 0 { self.s(8.0) + self.s(6.0) + self.s(8.0) + w_net } else { 0 };
         self.w = (self.s(12.0) + self.s(8.0) + self.s(8.0) + w_left + tail + self.s(12.0))
@@ -627,8 +654,9 @@ impl Widget {
             let cy = (self.h / 2) as f32;
             let dot_d = self.s(8.0) as f32;
             let f_main = self.main_font();
-            let f_count = self.count_font();
+            let f_count = if self.head == 1 { self.head_font(true) } else { self.count_font() };
             let left = self.left_text();
+            let count_txt = self.count_text();
             let wf = self.w as f32;
             let hf = self.h as f32;
             let w_net = self.net_width();
@@ -645,11 +673,21 @@ impl Widget {
                 g.fill_ellipse(&accent, wf - self.s(12.0) as f32 - dot_d, cy - dot_d / 2.0, dot_d, dot_d);
                 let far = StringFormat::new(gdip::ALIGN_FAR, gdip::ALIGN_CENTER);
                 let mut xr = wf - self.s(12.0) as f32 - dot_d - self.s(8.0) as f32;
-                g.draw_string(&left, &f_main, &text, rect(0.0, xr), &far);
-                xr -= self.measure(&left, &f_main) + self.s(8.0) as f32;
-                g.draw_string("·", &f_main, &dim, rect(0.0, xr), &far);
-                xr -= (self.s(6.0) + self.s(8.0)) as f32;
-                g.draw_string(&self.count, &f_count, &good, rect(0.0, xr), &far);
+                if !left.is_empty() {
+                    g.draw_string(&left, &f_main, &text, rect(0.0, xr), &far);
+                    xr -= self.measure(&left, &f_main) + self.s(8.0) as f32;
+                }
+                if self.head == 1 {
+                    let half = hf / 2.0;
+                    g.draw_string(&self.time, &self.head_font(false), &text, gdip::rectf(0.0, 0.0, xr, half), &far);
+                    g.draw_string(&count_txt, &f_count, &good, gdip::rectf(0.0, half, xr, half), &far);
+                } else {
+                    if self.head == 0 {
+                        g.draw_string("·", &f_main, &dim, rect(0.0, xr), &far);
+                        xr -= (self.s(6.0) + self.s(8.0)) as f32;
+                    }
+                    g.draw_string(&count_txt, &f_count, &good, rect(0.0, xr), &far);
+                }
                 if !self.segs.is_empty() {
                     // Mirrored tail: block at the left pad, segments left-aligned, "·" at its end.
                     let near = StringFormat::new(gdip::ALIGN_NEAR, gdip::ALIGN_CENTER);
@@ -669,11 +707,21 @@ impl Widget {
                 g.fill_ellipse(&accent, self.s(12.0) as f32, cy - dot_d / 2.0, dot_d, dot_d);
                 let sf = StringFormat::new(gdip::ALIGN_NEAR, gdip::ALIGN_CENTER);
                 let mut x = (self.s(12.0) + self.s(8.0)) as f32 + dot_d;
-                g.draw_string(&left, &f_main, &text, rect(x, wf), &sf);
-                x += self.measure(&left, &f_main) + self.s(8.0) as f32;
-                g.draw_string("·", &f_main, &dim, rect(x, self.s(6.0) as f32), &sf);
-                x += (self.s(6.0) + self.s(8.0)) as f32;
-                g.draw_string(&self.count, &f_count, &good, rect(x, wf), &sf);
+                if !left.is_empty() {
+                    g.draw_string(&left, &f_main, &text, rect(x, wf), &sf);
+                    x += self.measure(&left, &f_main) + self.s(8.0) as f32;
+                }
+                if self.head == 1 {
+                    let half = hf / 2.0;
+                    g.draw_string(&self.time, &self.head_font(false), &text, gdip::rectf(x, 0.0, wf, half), &sf);
+                    g.draw_string(&count_txt, &f_count, &good, gdip::rectf(x, half, wf, half), &sf);
+                } else {
+                    if self.head == 0 {
+                        g.draw_string("·", &f_main, &dim, rect(x, self.s(6.0) as f32), &sf);
+                        x += (self.s(6.0) + self.s(8.0)) as f32;
+                    }
+                    g.draw_string(&count_txt, &f_count, &good, rect(x, wf), &sf);
+                }
                 if !self.segs.is_empty() {
                     // "·" at the block's static start; segments right-aligned in slots (units anchored).
                     let dot_x = wf - (self.s(12.0) + self.s(8.0) + self.s(6.0)) as f32 - w_net as f32;

@@ -9,6 +9,10 @@ fn is_true(b: &bool) -> bool {
     *b
 }
 
+pub const PILL_SEGMENTS: [&str; 5] = ["speed", "ping", "sys", "vpn", "usage"];
+pub const HEAD_LAYOUTS: [&str; 4] = ["full", "stacked", "nameCount", "countOnly"];
+pub const USAGE_PERIODS: [&str; 3] = ["today", "month", "both"];
+
 /// Built-in reminder tones, plus the custom-file sentinel.
 pub const REMINDER_SOUND_IDS: [&str; 6] = ["chime", "bell", "ding", "beep", "double", "custom"];
 
@@ -45,6 +49,11 @@ pub struct AppConfig {
     pub show_sys_meters: bool,
     pub show_vpn: bool,
     pub rotate_meters: bool,
+    pub wide_meters: bool,
+    pub stack_pairs: bool,
+    pub head_layout: String, // full | stacked | nameCount | countOnly
+    pub usage_period: String, // today | month | both
+    pub pill_order: Vec<String>,
     pub track_data_usage: bool,
     pub show_data_usage: bool,
     pub timezone_hours: f64,
@@ -98,6 +107,11 @@ impl Default for AppConfig {
             show_sys_meters: false,
             show_vpn: false,
             rotate_meters: true,
+            wide_meters: false,
+            stack_pairs: true,
+            head_layout: "stacked".into(),
+            usage_period: "today".into(),
+            pill_order: PILL_SEGMENTS.iter().map(|s| s.to_string()).collect(),
             track_data_usage: false,
             show_data_usage: false,
             timezone_hours: TZ_SYSTEM,
@@ -152,6 +166,25 @@ impl AppConfig {
         if !REMINDER_SOUND_IDS.contains(&self.reminder_sound_id.as_str()) {
             self.reminder_sound_id = "chime".into();
         }
+        if !HEAD_LAYOUTS.contains(&self.head_layout.as_str()) {
+            self.head_layout = "stacked".into();
+        }
+        if !USAGE_PERIODS.contains(&self.usage_period.as_str()) {
+            self.usage_period = "today".into();
+        }
+        // An imported order may be short, duplicated or unknown; every segment must appear once.
+        let mut order: Vec<String> = Vec::with_capacity(PILL_SEGMENTS.len());
+        for s in self.pill_order.iter() {
+            if PILL_SEGMENTS.contains(&s.as_str()) && !order.contains(s) {
+                order.push(s.clone());
+            }
+        }
+        for s in PILL_SEGMENTS {
+            if !order.iter().any(|o| o == s) {
+                order.push(s.to_string());
+            }
+        }
+        self.pill_order = order;
     }
 
     pub fn dir() -> PathBuf {

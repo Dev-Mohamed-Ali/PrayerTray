@@ -34,8 +34,12 @@ from a paper spec:
 Config compatibility is a hard contract: `%APPDATA%\PrayerTray\config.json`, PascalCase via serde,
 sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). The file has since
 diverged in both directions: `NetInterfaceId`, `TrackWorkHours` and `CompactMeters` are dropped on
-save because those options are gone, and the Rust-only settings (`RotateMeters`, `ShowSysMeters`, `ShowVpn`, and
-`MuteWhenBusy` when opted out) are written alongside the C# ones. Unknown keys are ignored on load,
+save because those options are gone, and the Rust-only settings (`RotateMeters`, `WideMeters`,
+`StackPairs`, `HeadLayout`, `UsagePeriod`, `PillOrder`, `ShowSysMeters`, `ShowVpn`, and
+`MuteWhenBusy` when opted out) are written alongside the C# ones.
+`WideMeters` replaces C#'s `CompactMeters` rather than reusing it: the sense is inverted so the
+narrow tail is what an absent key means, and no stored `CompactMeters: false` can bring the wide
+one back. Unknown keys are ignored on load,
 so an older file still opens. What `tests/config_roundtrip.rs` guarantees is the part that still
 matters: no C# field is ever dropped or renamed on the way back out.
 

@@ -154,3 +154,47 @@ fn imported_reminder_sound_id_cannot_escape_the_temp_directory() {
         assert_eq!(c.reminder_sound_id, id);
     }
 }
+
+/// The pill order drives which segments render and in what order; an imported or hand-edited
+/// file may repeat, omit or invent ids, and every segment must still appear exactly once.
+#[test]
+fn pill_order_is_repaired_to_every_segment_exactly_once() {
+    let cases = [
+        r#"{"PillOrder":[]}"#,
+        r#"{"PillOrder":["ping","ping","ping"]}"#,
+        r#"{"PillOrder":["nonsense","usage","../etc"]}"#,
+        r#"{}"#,
+    ];
+    for json in cases {
+        let mut cfg: AppConfig = serde_json::from_str(json).unwrap();
+        cfg.sanitize();
+        let mut sorted = cfg.pill_order.clone();
+        sorted.sort();
+        let mut want: Vec<String> = prayertray::config::PILL_SEGMENTS.iter().map(|s| s.to_string()).collect();
+        want.sort();
+        assert_eq!(sorted, want, "{json}");
+    }
+}
+
+/// A partial order keeps the caller's sequence and gains the rest behind it.
+#[test]
+fn pill_order_keeps_the_positions_it_was_given() {
+    let mut cfg: AppConfig = serde_json::from_str(r#"{"PillOrder":["usage","vpn"]}"#).unwrap();
+    cfg.sanitize();
+    assert_eq!(&cfg.pill_order[..2], &["usage".to_string(), "vpn".to_string()]);
+}
+
+#[test]
+fn unknown_head_layout_and_period_fall_back() {
+    let mut cfg: AppConfig =
+        serde_json::from_str(r#"{"HeadLayout":"sideways","UsagePeriod":"decade"}"#).unwrap();
+    cfg.sanitize();
+    assert_eq!(cfg.head_layout, "stacked");
+    assert_eq!(cfg.usage_period, "today");
+
+    for id in prayertray::config::HEAD_LAYOUTS {
+        let mut c = AppConfig { head_layout: id.into(), ..AppConfig::default() };
+        c.sanitize();
+        assert_eq!(c.head_layout, id);
+    }
+}

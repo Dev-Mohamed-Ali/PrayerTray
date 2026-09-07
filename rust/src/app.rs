@@ -129,6 +129,10 @@ pub struct App {
     rot: u32,
 }
 
+fn head_mode(cfg: &AppConfig) -> u8 {
+    crate::config::HEAD_LAYOUTS.iter().position(|h| *h == cfg.head_layout).unwrap_or(1) as u8
+}
+
 impl App {
     pub fn run() {
         unsafe {
@@ -236,6 +240,7 @@ impl App {
         w.anchor_right = !self.cfg.widget_anchor.eq_ignore_ascii_case("Left");
         w.offset = self.cfg.widget_offset;
         w.hide_on_fullscreen = self.cfg.hide_on_fullscreen;
+        w.head = head_mode(&self.cfg);
         self.widget = Some(w);
     }
 
@@ -320,38 +325,71 @@ impl App {
 
     /// Build the tail segments with their worst-case templates.
     fn update_net_segments(&mut self, rows: &[net::IfRow]) {
+        let wide = self.cfg.wide_meters;
+        let stack = self.cfg.stack_pairs;
+        let order = self.cfg.pill_order.clone();
         let mut segs: Vec<(String, String)> = Vec::with_capacity(6);
-        if self.cfg.show_net_speed {
-            let (down, up) = self.net_speed.sample(rows);
-            let (d, u) = net_speed::format_parts(down, up);
-            // One slot, two lines: down over up, so the pair costs a single reading's width.
-            segs.push((format!("{d}\n{u}"), "↓ 8.8 MB/s\n↑ 8.8 MB/s".into()));
-        }
-        if self.cfg.show_ping {
-            let ms = self.latency.sample();
-            segs.push((latency::format(ms), "88 ms".into()));
-        }
-        if self.cfg.track_data_usage && self.cfg.show_data_usage {
-            let (rx, tx) = self.data_usage.today();
-            segs.push((
-                format!("Σ {}", data_usage::size(rx + tx)),
-                "Σ 888 MB".into(),
-            ));
-        }
-        if self.cfg.show_sys_meters {
-            segs.push((sys_meters::format_cpu(self.sys.cpu_percent()), "CPU 100%".into()));
-            segs.push((sys_meters::format_ram(sys_meters::memory_percent()), "RAM 100%".into()));
+        let mut vpn_at: Option<usize> = None;
+        for id in &order {
+            match id.as_str() {
+                "speed" if self.cfg.show_net_speed => {
+                    let (down, up) = self.net_speed.sample(rows);
+                    let (d, u) = net_speed::format_parts(down, up);
+                    // Stacked, the pair costs one reading's width instead of two.
+                    let (dt, ut) = if wide { ("↓ 88.8 MB/s", "↑ 88.8 MB/s") } else { ("↓ 8.8 MB/s", "↑ 8.8 MB/s") };
+                    if stack {
+                        segs.push((format!("{u}\n{d}"), format!("{ut}\n{dt}")));
+                    } else {
+                        segs.push((u, ut.into()));
+                        segs.push((d, dt.into()));
+                    }
+                }
+                "ping" if self.cfg.show_ping => {
+                    let ms = self.latency.sample();
+                    segs.push((latency::format(ms), if wide { "888 ms" } else { "88 ms" }.into()));
+                }
+                "sys" if self.cfg.show_sys_meters => {
+                    let cpu = sys_meters::format_cpu(self.sys.cpu_percent());
+                    let ram = sys_meters::format_ram(sys_meters::memory_percent());
+                    if stack {
+                        segs.push((format!("{cpu}\n{ram}"), "CPU 100%\nRAM 100%".into()));
+                    } else {
+                        segs.push((cpu, "CPU 100%".into()));
+                        segs.push((ram, "RAM 100%".into()));
+                    }
+                }
+                "usage" if self.cfg.track_data_usage && self.cfg.show_data_usage => {
+                    let (dr, dt) = self.data_usage.today();
+                    let (mr, mt) = self.data_usage.month();
+                    let (day, month) = (data_usage::size(dr + dt), data_usage::size(mr + mt));
+                    let one = if wide { "Σ 8.88 GB" } else { "Σ 888 MB" };
+                    segs.push(match self.cfg.usage_period.as_str() {
+                        "month" => (format!("Σ {month}"), one.into()),
+                        // Both periods only tell apart by their prefix, so they carry one.
+                        "both" if stack => (format!("Σd {day}\nΣm {month}"), format!("{one}d\n{one}m")),
+                        "both" => (format!("Σd {day} · Σm {month}"), format!("{one}d · {one}m")),
+                        _ => (format!("Σ {day}"), one.into()),
+                    });
+                }
+                "vpn" if self.cfg.show_vpn && net::default_route_is_tunnel(rows) => {
+                    vpn_at = Some(segs.len());
+                    segs.push(("VPN".into(), "VPN".into()));
+                }
+                _ => {}
+            }
         }
         // The widget measures these to size the shared slot; picking a winner here would mean
         // guessing rendered width from a string, which is what the v2.2.1 slot work removed.
         let mut pool = Vec::new();
-        if self.cfg.rotate_meters && segs.len() > 1 {
-            pool = segs.iter().map(|s| s.1.clone()).collect();
-            segs = vec![Self::rotated(&segs, self.rot)];
-        }
-        // Appended after the rotation so the indicator is always visible, never a turn.
-        if self.cfg.show_vpn && net::default_route_is_tunnel(rows) {
-            segs.push(("VPN".into(), "VPN".into()));
+        if self.cfg.rotate_meters {
+            // The indicator keeps its place rather than spending a turn, so it sits out the
+            // rotation and rejoins at the end.
+            let vpn = vpn_at.map(|i| segs.remove(i));
+            if segs.len() > 1 {
+                pool = segs.iter().map(|s| s.1.clone()).collect();
+                segs = vec![Self::rotated(&segs, self.rot)];
+            }
+            segs.extend(vpn);
         }
         if let Some(w) = &mut self.widget {
             w.set_net(segs, pool);
@@ -1072,6 +1110,7 @@ impl SettingsHost for App {
             w.anchor_right = !self.cfg.widget_anchor.eq_ignore_ascii_case("Left");
             w.offset = self.cfg.widget_offset;
             w.hide_on_fullscreen = self.cfg.hide_on_fullscreen;
+            w.head = head_mode(&self.cfg);
         }
         self.apply_net_config();
         self.recompute();

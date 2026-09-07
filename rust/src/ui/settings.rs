@@ -2,7 +2,7 @@
 //! Save persists / Cancel reverts to the opening snapshot / language change closes with Retry.
 
 use crate::calc::praytimes::METHODS;
-use crate::config::AppConfig;
+use crate::config::{self, AppConfig};
 use crate::i18n;
 use crate::native::displays::{self, Monitor};
 use crate::services::{audio, location, location::DetectedLocation};
@@ -90,9 +90,17 @@ const ID_PING: i32 = 281;
 const ID_PINGHOST: i32 = 282;
 const ID_ROTATE: i32 = 283;
 const ID_SYSMETERS: i32 = 284;
+const ID_WIDE: i32 = 285;
 const ID_TRACKUSAGE: i32 = 286;
 const ID_SHOWUSAGE: i32 = 287;
 const ID_VPN: i32 = 288;
+const ID_STACK: i32 = 289;
+const ID_HEAD: i32 = 290;
+const ID_USAGEPERIOD: i32 = 291;
+const ID_SEGUP: i32 = 300; // +0..4, one per pill row
+const ID_SEGDN: i32 = 310;
+const SEG_W: i32 = 330;
+const SEG_BTN_X: i32 = LBL_X + SEG_W + 6;
 const ID_SHOWHIJRI: i32 = 250;
 const ID_HIJRIADJ: i32 = 251;
 const ID_SHOWEVENTS: i32 = 252;
@@ -128,7 +136,7 @@ const CARD_PAD: i32 = 16;
 const TITLE_H: i32 = 34;
 const CARD_Y: i32 = M;
 const ROW_H: i32 = 28;
-const CARD_H: i32 = CARD_PAD + TITLE_H + 10 * ROW_H + CARD_PAD; // 10 = tallest page (Appearance)
+const CARD_H: i32 = CARD_PAD + TITLE_H + 12 * ROW_H + CARD_PAD; // 12 = tallest page (Taskbar pill)
 const LBL_X: i32 = CARD_X + CARD_PAD;
 const LABEL_W: i32 = 130;
 const CTRL_X: i32 = LBL_X + LABEL_W + 8;
@@ -161,6 +169,7 @@ struct Dialog {
     fonts: Vec<String>,
     rem_ids: Vec<&'static str>,
     azan_ids: Vec<String>,
+    pill_order: Vec<String>,
 }
 
 /// Modal settings dialog on the current thread (nested message loop).
@@ -190,7 +199,8 @@ pub fn run(host: &mut dyn SettingsHost, snapshot: &AppConfig, prefill: Option<&D
         edits: Vec::new(),
         checks: Vec::new(),
         labeled: Vec::new(),
-        titles: ["card.location", "card.calculation", "card.appearance", "card.network", "card.religious", "card.notifications"]
+        pill_order: config::PILL_SEGMENTS.iter().map(|s| s.to_string()).collect(),
+        titles: ["card.location", "card.calculation", "card.appearance", "card.pill", "card.religious", "card.notifications"]
             .iter()
             .map(|k| i18n::t(k).to_string())
             .collect(),
@@ -292,6 +302,35 @@ impl Dialog {
 
     fn item(&self, id: i32) -> HWND {
         unsafe { GetDlgItem(Some(self.hwnd), id).unwrap_or_default() }
+    }
+
+    fn seg_ctl(&self, id: &str) -> HWND {
+        self.item(match id {
+            "speed" => ID_NETSPEED,
+            "ping" => ID_PING,
+            "sys" => ID_SYSMETERS,
+            "vpn" => ID_VPN,
+            _ => ID_SHOWUSAGE,
+        })
+    }
+
+    /// Park each segment checkbox on the row its position in `pill_order` calls for.
+    fn layout_pill_rows(&self) {
+        for (i, id) in self.pill_order.iter().enumerate() {
+            let y = Y0 + i as i32 * ROW_H + 2;
+            let _ = unsafe { MoveWindow(self.seg_ctl(id), self.s(LBL_X), self.s(y), self.s(SEG_W), self.s(20), true) };
+        }
+    }
+
+    fn move_seg(&mut self, row: usize, dir: i32) {
+        let to = row as i32 + dir;
+        if to < 0 || to as usize >= self.pill_order.len() {
+            return;
+        }
+        self.pill_order.swap(row, to as usize);
+        self.layout_pill_rows();
+        let order = self.pill_order.clone();
+        self.live(move |c| c.pill_order = order);
     }
 
     fn place_window(&self) {
@@ -474,24 +513,47 @@ impl Dialog {
         y += ROW_H;
         self.check_at(2, ID_HIDEFS, i18n::t("chk.hideFs"), LBL_X, y, 380);
 
-        // --- Network ---
+        // --- Taskbar pill ---
+        // The five segment checkboxes are created at row 0 and moved into pill_order's order by
+        // layout_pill_rows; the arrows stay put and act on whichever row they sit beside.
+        for id in [ID_NETSPEED, ID_PING, ID_SYSMETERS, ID_VPN, ID_SHOWUSAGE] {
+            let key = match id {
+                ID_NETSPEED => "chk.netSpeed",
+                ID_PING => "chk.ping",
+                ID_SYSMETERS => "chk.sysMeters",
+                ID_VPN => "chk.showVpn",
+                _ => "chk.showUsage",
+            };
+            self.check_at(3, id, i18n::t(key), LBL_X, Y0, SEG_W);
+        }
         let mut y = Y0;
-        self.check_at(3, ID_NETSPEED, i18n::t("chk.netSpeed"), LBL_X, y, 380);
-        y += ROW_H;
-        self.check_at(3, ID_PING, i18n::t("chk.ping"), LBL_X, y, 380);
-        y += ROW_H;
+        for i in 0..config::PILL_SEGMENTS.len() as i32 {
+            self.btn_at(Some(3), ID_SEGUP + i, "▲", SEG_BTN_X, y + 2, 22, 20);
+            self.btn_at(Some(3), ID_SEGDN + i, "▼", SEG_BTN_X + 24, y + 2, 22, 20);
+            y += ROW_H;
+        }
         self.lbl_for(3, ID_PINGHOST, i18n::t("label.pingHost"), LBL_X, y, LABEL_W);
         self.edit_at(3, ID_PINGHOST, CTRL_X, y, 200);
         y += ROW_H;
-        self.check_at(3, ID_SYSMETERS, i18n::t("chk.sysMeters"), LBL_X, y, 380);
+        self.lbl(3, i18n::t("label.headLayout"), LBL_X, y, LABEL_W, false);
+        let hd = self.combo_at(3, ID_HEAD, CTRL_X, y, 268);
+        for k in ["head.full", "head.stacked", "head.nameCount", "head.countOnly"] {
+            controls::combo_add(hd, i18n::t(k));
+        }
         y += ROW_H;
-        self.check_at(3, ID_VPN, i18n::t("chk.showVpn"), LBL_X, y, 380);
+        self.check_at(3, ID_STACK, i18n::t("chk.stackPairs"), LBL_X, y, 380);
+        y += ROW_H;
+        self.check_at(3, ID_WIDE, i18n::t("chk.wideMeters"), LBL_X, y, 380);
         y += ROW_H;
         self.check_at(3, ID_ROTATE, i18n::t("chk.rotateMeters"), LBL_X, y, 380);
         y += ROW_H;
         self.check_at(3, ID_TRACKUSAGE, i18n::t("chk.trackUsage"), LBL_X, y, 380);
         y += ROW_H;
-        self.check_at(3, ID_SHOWUSAGE, i18n::t("chk.showUsage"), LBL_X, y, 380);
+        self.lbl(3, i18n::t("label.usagePeriod"), LBL_X, y, LABEL_W, false);
+        let up = self.combo_at(3, ID_USAGEPERIOD, CTRL_X, y, 200);
+        for k in ["period.today", "period.month", "period.both"] {
+            controls::combo_add(up, i18n::t(k));
+        }
 
         // --- Religious ---
         let mut y = Y0;
@@ -607,8 +669,16 @@ impl Dialog {
         controls::set_checked(self.item(ID_SYSMETERS), cfg.show_sys_meters);
         controls::set_checked(self.item(ID_VPN), cfg.show_vpn);
         controls::set_checked(self.item(ID_ROTATE), cfg.rotate_meters);
+        let hi = config::HEAD_LAYOUTS.iter().position(|h| *h == cfg.head_layout).unwrap_or(1);
+        controls::combo_set(self.item(ID_HEAD), hi as i32);
+        let ui = config::USAGE_PERIODS.iter().position(|u| *u == cfg.usage_period).unwrap_or(0);
+        controls::combo_set(self.item(ID_USAGEPERIOD), ui as i32);
+        controls::set_checked(self.item(ID_STACK), cfg.stack_pairs);
+        controls::set_checked(self.item(ID_WIDE), cfg.wide_meters);
         controls::set_checked(self.item(ID_TRACKUSAGE), cfg.track_data_usage);
         controls::set_checked(self.item(ID_SHOWUSAGE), cfg.show_data_usage);
+        self.pill_order = cfg.pill_order.clone();
+        self.layout_pill_rows();
         controls::set_checked(self.item(ID_SHOWHIJRI), cfg.show_hijri_date);
         self.set_num(ID_HIJRIADJ, cfg.hijri_adjust.clamp(-2, 2));
         controls::set_checked(self.item(ID_SHOWEVENTS), cfg.show_islamic_events);
@@ -695,8 +765,13 @@ impl Dialog {
         c.show_sys_meters = controls::checked(self.item(ID_SYSMETERS));
         c.show_vpn = controls::checked(self.item(ID_VPN));
         c.rotate_meters = controls::checked(self.item(ID_ROTATE));
+        c.head_layout = config::HEAD_LAYOUTS[controls::combo_sel(self.item(ID_HEAD)).clamp(0, 3) as usize].to_string();
+        c.usage_period = config::USAGE_PERIODS[controls::combo_sel(self.item(ID_USAGEPERIOD)).clamp(0, 2) as usize].to_string();
+        c.stack_pairs = controls::checked(self.item(ID_STACK));
+        c.wide_meters = controls::checked(self.item(ID_WIDE));
         c.track_data_usage = controls::checked(self.item(ID_TRACKUSAGE));
         c.show_data_usage = controls::checked(self.item(ID_SHOWUSAGE));
+        c.pill_order = self.pill_order.clone();
         c.show_hijri_date = controls::checked(self.item(ID_SHOWHIJRI));
         c.hijri_adjust = self.get_num(ID_HIJRIADJ, -2, 2).unwrap_or(0);
         c.show_islamic_events = controls::checked(self.item(ID_SHOWEVENTS));
@@ -756,7 +831,14 @@ impl Dialog {
         controls::enable(self.item(ID_SHOWUSAGE), track);
         let sysm = controls::checked(self.item(ID_SYSMETERS));
         let any_meter = netspeed || ping || sysm || (track && show_usage);
+        let last = config::PILL_SEGMENTS.len() as i32 - 1;
+        for i in 0..=last {
+            controls::enable(self.item(ID_SEGUP + i), i > 0);
+            controls::enable(self.item(ID_SEGDN + i), i < last);
+        }
         controls::enable(self.item(ID_ROTATE), any_meter);
+        controls::enable(self.item(ID_WIDE), any_meter);
+        controls::enable(self.item(ID_STACK), netspeed || sysm);
 
         let states = [
             (ID_PINGHOST, ping),
@@ -1032,6 +1114,12 @@ impl Dialog {
                     self.live(|c| c.show_islamic_events = v);
                 }
                 ID_REMENABLE | ID_REMSOUND => self.sync_enabled(),
+                n if (ID_SEGUP..ID_SEGUP + config::PILL_SEGMENTS.len() as i32).contains(&n) => {
+                    self.move_seg((n - ID_SEGUP) as usize, -1)
+                }
+                n if (ID_SEGDN..ID_SEGDN + config::PILL_SEGMENTS.len() as i32).contains(&n) => {
+                    self.move_seg((n - ID_SEGDN) as usize, 1)
+                }
                 ID_NETSPEED => {
                     let v = controls::checked(self.item(ID_NETSPEED));
                     self.live(|c| c.show_net_speed = v);
@@ -1054,6 +1142,22 @@ impl Dialog {
                 ID_ROTATE => {
                     let v = controls::checked(self.item(ID_ROTATE));
                     self.live(|c| c.rotate_meters = v);
+                }
+                ID_HEAD => {
+                    let i = controls::combo_sel(self.item(ID_HEAD)).clamp(0, 3) as usize;
+                    self.live(|c| c.head_layout = config::HEAD_LAYOUTS[i].to_string());
+                }
+                ID_USAGEPERIOD => {
+                    let i = controls::combo_sel(self.item(ID_USAGEPERIOD)).clamp(0, 2) as usize;
+                    self.live(|c| c.usage_period = config::USAGE_PERIODS[i].to_string());
+                }
+                ID_STACK => {
+                    let v = controls::checked(self.item(ID_STACK));
+                    self.live(|c| c.stack_pairs = v);
+                }
+                ID_WIDE => {
+                    let v = controls::checked(self.item(ID_WIDE));
+                    self.live(|c| c.wide_meters = v);
                 }
                 ID_TRACKUSAGE => {
                     let v = controls::checked(self.item(ID_TRACKUSAGE));
