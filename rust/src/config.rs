@@ -54,6 +54,7 @@ pub struct AppConfig {
     pub head_layout: String, // full | stacked | nameCount | countOnly
     pub usage_period: String, // today | month | both
     pub pill_order: Vec<String>,
+    pub lock_widget: bool,
     pub track_data_usage: bool,
     pub show_data_usage: bool,
     pub timezone_hours: f64,
@@ -112,6 +113,7 @@ impl Default for AppConfig {
             head_layout: "stacked".into(),
             usage_period: "today".into(),
             pill_order: PILL_SEGMENTS.iter().map(|s| s.to_string()).collect(),
+            lock_widget: false,
             track_data_usage: false,
             show_data_usage: false,
             timezone_hours: TZ_SYSTEM,

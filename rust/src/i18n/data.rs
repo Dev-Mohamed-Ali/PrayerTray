@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 154] = [
+pub static UI: [(&str, [&str; LANGS]); 155] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -105,6 +105,7 @@ pub static UI: [(&str, [&str; LANGS]); 154] = [
     ("menu.checkUpdates", ["Check for updates", "التحقق من التحديثات", "Rechercher des mises à jour", "Güncellemeleri denetle", "اپڈیٹس چیک کریں", "Periksa pembaruan"]),
     ("menu.dataUsage", ["Data usage…", "استهلاك البيانات…", "Consommation de données…", "Veri kullanımı…", "ڈیٹا استعمال…", "Penggunaan data…"]),
     ("menu.exit", ["Exit", "خروج", "Quitter", "Çıkış", "خروج", "Keluar"]),
+    ("menu.lockWidget", ["Lock pill position", "تثبيت موضع الشريط", "Verrouiller la position de la pastille", "Çubuk konumunu kilitle", "پٹی کی جگہ مقفل کریں", "Kunci posisi pil"]),
     ("menu.refresh", ["Refresh now", "تحديث الآن", "Actualiser", "Şimdi yenile", "ابھی تازہ کریں", "Segarkan sekarang"]),
     ("menu.settings", ["Settings…", "الإعدادات…", "Paramètres…", "Ayarlar…", "ترتیبات…", "Pengaturan…"]),
     ("menu.showTimes", ["Show times", "عرض الأوقات", "Afficher les horaires", "Vakitleri göster", "اوقات دکھائیں", "Tampilkan waktu"]),

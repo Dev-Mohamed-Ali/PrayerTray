@@ -54,6 +54,7 @@ const CMD_SETTINGS: usize = 1004;
 const CMD_STOP_SOUND: usize = 1005;
 const CMD_CHECK_UPDATES: usize = 1006;
 const CMD_DATA_USAGE: usize = 1007;
+const CMD_LOCK: usize = 1009;
 const CMD_EXIT: usize = 1008;
 
 /// Update-check result; lparam = Box<Option<UpdateInfo>> raw.
@@ -240,6 +241,7 @@ impl App {
         w.anchor_right = !self.cfg.widget_anchor.eq_ignore_ascii_case("Left");
         w.offset = self.cfg.widget_offset;
         w.hide_on_fullscreen = self.cfg.hide_on_fullscreen;
+        w.locked = self.cfg.lock_widget;
         w.head = head_mode(&self.cfg);
         self.widget = Some(w);
     }
@@ -747,6 +749,11 @@ impl App {
                 CMD_STARTUP,
                 i18n::t("menu.startup"),
             );
+            add(
+                if self.cfg.lock_widget { MF_STRING | MF_CHECKED } else { MF_STRING },
+                CMD_LOCK,
+                i18n::t("menu.lockWidget"),
+            );
             add(MF_STRING, CMD_SETTINGS, i18n::t("menu.settings"));
             add(MF_STRING, CMD_STOP_SOUND, i18n::t("menu.stopSound"));
             add(MF_STRING, CMD_CHECK_UPDATES, i18n::t("menu.checkUpdates"));
@@ -892,6 +899,13 @@ impl App {
                 if !startup::set_enabled(!startup::is_enabled()) {
                     let title = i18n::t("app.name").to_string();
                     self.notify(&title, i18n::t("msg.startupError"));
+                }
+            }
+            CMD_LOCK => {
+                self.cfg.lock_widget = !self.cfg.lock_widget;
+                self.cfg.save();
+                if let Some(w) = &mut self.widget {
+                    w.locked = self.cfg.lock_widget;
                 }
             }
             CMD_SETTINGS => self.run_settings(None),
@@ -1110,6 +1124,7 @@ impl SettingsHost for App {
             w.anchor_right = !self.cfg.widget_anchor.eq_ignore_ascii_case("Left");
             w.offset = self.cfg.widget_offset;
             w.hide_on_fullscreen = self.cfg.hide_on_fullscreen;
+            w.locked = self.cfg.lock_widget;
             w.head = head_mode(&self.cfg);
         }
         self.apply_net_config();

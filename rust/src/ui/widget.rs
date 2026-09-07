@@ -66,6 +66,7 @@ pub struct Widget {
     pub anchor_right: bool,
     pub offset: i32,
     pub hide_on_fullscreen: bool,
+    pub locked: bool,
     /// 0 name+time+countdown, 1 time over countdown, 2 name+countdown, 3 countdown only.
     pub head: u8,
     name: String,
@@ -112,6 +113,7 @@ impl Widget {
             anchor_right: true,
             offset: 12,
             hide_on_fullscreen: true,
+            locked: false,
             head: 1,
             name: "—".into(),
             time: String::new(),
@@ -513,6 +515,9 @@ impl Widget {
         }
         if !self.drag_moved && (cursor_x - start_cursor).abs() < DRAG_SLOP {
             return; // still within slop: this may yet be a plain click
+        }
+        if self.locked {
+            return; // the press still counts as a click; only the move is refused
         }
         self.drag_moved = true;
         let Some((strip, right_edge, left_edge)) = self.strip() else { return };
