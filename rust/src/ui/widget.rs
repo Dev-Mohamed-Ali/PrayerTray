@@ -212,8 +212,13 @@ impl Widget {
     }
 
     fn seg_font(&self, stacked: bool) -> Font {
-        let pt = if stacked { 9.0 } else { 13.0 };
-        Font::new(&theme::family(), pt * self.scale * theme::font_scale(), gdip::STYLE_REGULAR)
+        // Sizes are pixel-unit ems. A stacked line gets half the pill, and Segoe UI needs about
+        // 1.36x its em for a line box, so that is the cap — never larger than the body text.
+        let mut px = 13.0 * self.scale * theme::font_scale();
+        if stacked {
+            px = px.min(self.h as f32 / 2.0 / 1.36);
+        }
+        Font::new(&theme::family(), px.max(1.0), gdip::STYLE_REGULAR)
     }
 
     /// Rendered width of a segment: the wider line when stacked.
