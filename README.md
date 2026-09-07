@@ -34,8 +34,8 @@ set your location. Settings from a v1.x install are picked up automatically (sam
   free again you get a single silent "the azan was muted" line. On by default, one checkbox to
   turn off.
 - **Meters in the pill** *(optional)* — download/upload speed, latency, per-day data total, and
-  CPU/memory. They rotate through a single fixed-width slot, so turning another one on never widens
-  the pill. A **Data usage** window shows per-day history (kept 90 days). Adapters are picked
+  CPU/memory. Download and upload stack on two lines in one slot, and the meters can rotate through
+  a single fixed-width slot, so turning another one on never widens the pill. A **Data usage** window shows per-day history (kept 90 days). Adapters are picked
   automatically: only real NICs count, so a VPN tunnel no longer doubles your totals.
 - **VPN awareness** *(optional)* — a marker whenever a tunnel is carrying your traffic, read from
   the local routing table. No packet is sent; prayer times stay fully offline either way.

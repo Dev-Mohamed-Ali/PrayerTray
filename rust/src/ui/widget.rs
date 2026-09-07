@@ -202,6 +202,41 @@ impl Widget {
         Font::new(&theme::family(), 13.0 * self.scale * theme::font_scale(), gdip::STYLE_BOLD)
     }
 
+    /// A tail segment carrying a newline draws as two half-height lines sharing one slot,
+    /// which is how the speed pair fits in the width of a single reading.
+    fn seg_lines(s: &str) -> (&str, Option<&str>) {
+        match s.split_once('\n') {
+            Some((top, bottom)) => (top, Some(bottom)),
+            None => (s, None),
+        }
+    }
+
+    fn seg_font(&self, stacked: bool) -> Font {
+        let pt = if stacked { 9.0 } else { 13.0 };
+        Font::new(&theme::family(), pt * self.scale * theme::font_scale(), gdip::STYLE_REGULAR)
+    }
+
+    /// Rendered width of a segment: the wider line when stacked.
+    fn measure_seg(&self, s: &str) -> f32 {
+        let (top, bottom) = Self::seg_lines(s);
+        let f = self.seg_font(bottom.is_some());
+        let w = self.measure(top, &f);
+        bottom.map(|b| w.max(self.measure(b, &f))).unwrap_or(w)
+    }
+
+    fn draw_seg(&self, g: &Graphics, text: &str, brush: &SolidBrush, x: f32, w: f32, sf: &StringFormat) {
+        let hf = self.h as f32;
+        let (top, bottom) = Self::seg_lines(text);
+        let Some(bottom) = bottom else {
+            g.draw_string(top, &self.seg_font(false), brush, gdip::rectf(x, 0.0, w, hf), sf);
+            return;
+        };
+        let f = self.seg_font(true);
+        let half = hf / 2.0;
+        g.draw_string(top, &f, brush, gdip::rectf(x, 0.0, w, half), sf);
+        g.draw_string(bottom, &f, brush, gdip::rectf(x, half, w, half), sf);
+    }
+
     fn measure(&self, s: &str, font: &Font) -> f32 {
         Graphics::from_bitmap(&self.measure_bmp).measure_string(s, font).0
     }
@@ -296,7 +331,7 @@ impl Widget {
     }
 
     /// Total tail width from the per-segment slots (grow-only; reset on font/DPI basis change).
-    fn net_width(&mut self, f_main: &Font) -> i32 {
+    fn net_width(&mut self) -> i32 {
         if self.segs.is_empty() {
             return 0;
         }
@@ -305,16 +340,16 @@ impl Widget {
         for i in 0..self.segs.len() {
             if self.seg_slots[i] == 0 {
                 // Rotating meters share slot 0, so it must fit the widest of them as rendered.
-                let mut w = self.measure(&self.segs[i].1.clone(), f_main).ceil() as i32;
+                let mut w = self.measure_seg(&self.segs[i].1.clone()).ceil() as i32;
                 if i == 0 {
                     for tmpl in self.slot_pool.clone() {
-                        w = w.max(self.measure(&tmpl, f_main).ceil() as i32);
+                        w = w.max(self.measure_seg(&tmpl).ceil() as i32);
                     }
                 }
                 self.seg_slots[i] = w;
             }
             let text = self.segs[i].0.clone();
-            let w = self.measure(&text, f_main).ceil() as i32;
+            let w = self.measure_seg(&text).ceil() as i32;
             if w > self.seg_slots[i] {
                 self.seg_slots[i] = w;
             }
@@ -332,7 +367,7 @@ impl Widget {
         // jitter); width still tracks the current text, so no reserved gap after short values.
         let count_norm = self.norm_digits(&self.count.clone(), &f_count);
         let w_count = self.measure(&count_norm, &f_count).ceil() as i32;
-        let w_net = self.net_width(&f_main);
+        let w_net = self.net_width();
         // [pad][dot][gap] left [gap] · [gap] count [ [gap] · [gap] net ] [pad]
         let tail = self.s(8.0)
             + self.s(6.0)
@@ -591,7 +626,7 @@ impl Widget {
             let left = self.left_text();
             let wf = self.w as f32;
             let hf = self.h as f32;
-            let w_net = self.net_width(&f_main);
+            let w_net = self.net_width();
 
             let accent = SolidBrush::new(pal.accent);
             let text = SolidBrush::new(pal.text);
@@ -615,7 +650,7 @@ impl Widget {
                     let near = StringFormat::new(gdip::ALIGN_NEAR, gdip::ALIGN_CENTER);
                     let mut xl = self.s(12.0) as f32;
                     for i in (0..self.segs.len()).rev() {
-                        g.draw_string(&self.segs[i].0, &f_main, &dim, rect(xl, wf - xl), &near);
+                        self.draw_seg(&g, &self.segs[i].0, &dim, xl, wf - xl, &near);
                         if i > 0 {
                             let sx = xl + self.seg_slots[i] as f32 + self.s(6.0) as f32;
                             g.draw_string("·", &f_main, &dim, rect(sx, self.s(6.0) as f32), &near);
@@ -641,7 +676,7 @@ impl Widget {
                     let far_sf = StringFormat::new(gdip::ALIGN_FAR, gdip::ALIGN_CENTER);
                     let mut xr = wf - self.s(12.0) as f32;
                     for i in (0..self.segs.len()).rev() {
-                        g.draw_string(&self.segs[i].0, &f_main, &dim, rect(0.0, xr), &far_sf);
+                        self.draw_seg(&g, &self.segs[i].0, &dim, 0.0, xr, &far_sf);
                         if i > 0 {
                             let sx = xr - self.seg_slots[i] as f32 - self.s(12.0) as f32;
                             g.draw_string("·", &f_main, &dim, rect(sx, self.s(6.0) as f32), &sf);

@@ -325,8 +325,9 @@ impl App {
         if self.cfg.show_net_speed {
             let (down, up) = self.net_speed.sample(rows);
             let (d, u) = net_speed::format_parts(down, up);
-            segs.push((d, if compact { "↓ 8.8 MB/s" } else { "↓ 88.8 MB/s" }.into()));
-            segs.push((u, if compact { "↑ 8.8 MB/s" } else { "↑ 88.8 MB/s" }.into()));
+            // One slot, two lines: down over up, so the pair costs a single reading's width.
+            let tmpl = if compact { "↓ 8.8 MB/s\n↑ 8.8 MB/s" } else { "↓ 88.8 MB/s\n↑ 88.8 MB/s" };
+            segs.push((format!("{d}\n{u}"), tmpl.into()));
         }
         if self.cfg.show_ping {
             let ms = self.latency.sample();
