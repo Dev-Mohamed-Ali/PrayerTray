@@ -46,9 +46,59 @@ impl Date {
     }
 }
 
+/// Length of `month`, leap years included (the next month's first day, minus this one's).
+pub fn days_in_month(year: i32, month: u32) -> u32 {
+    let (ny, nm) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+    (Date::new(ny, nm, 1).to_rd() - Date::new(year, month, 1).to_rd()) as u32
+}
+
+/// The most recent `cycle_day` on or before `today`, clamped to months that are too short.
+pub fn cycle_start(today: Date, cycle_day: u32) -> Date {
+    let want = cycle_day.clamp(1, 31);
+    let here = Date::new(today.year, today.month, want.min(days_in_month(today.year, today.month)));
+    if here.to_rd() <= today.to_rd() {
+        return here;
+    }
+    let (y, m) = if today.month == 1 { (today.year - 1, 12) } else { (today.year, today.month - 1) };
+    Date::new(y, m, want.min(days_in_month(y, m)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn month_lengths_follow_the_leap_rule() {
+        assert_eq!(days_in_month(2026, 2), 28);
+        assert_eq!(days_in_month(2024, 2), 29);
+        assert_eq!(days_in_month(2000, 2), 29); // divisible by 400
+        assert_eq!(days_in_month(1900, 2), 28); // divisible by 100, not 400
+        assert_eq!(days_in_month(2026, 12), 31);
+    }
+
+    #[test]
+    fn cycle_start_is_the_most_recent_billing_day() {
+        // Before this month's day -> last month's.
+        assert_eq!(cycle_start(Date::new(2026, 9, 13), 15), Date::new(2026, 8, 15));
+        // On or after it -> this month's.
+        assert_eq!(cycle_start(Date::new(2026, 9, 15), 15), Date::new(2026, 9, 15));
+        assert_eq!(cycle_start(Date::new(2026, 9, 20), 15), Date::new(2026, 9, 15));
+        // Day 1 is the plain calendar month.
+        assert_eq!(cycle_start(Date::new(2026, 9, 13), 1), Date::new(2026, 9, 1));
+    }
+
+    #[test]
+    fn cycle_start_clamps_short_months_and_crosses_the_year() {
+        // 31 in a 31-day month stays put; the month before is February.
+        assert_eq!(cycle_start(Date::new(2026, 3, 31), 31), Date::new(2026, 3, 31));
+        assert_eq!(cycle_start(Date::new(2026, 3, 5), 31), Date::new(2026, 2, 28));
+        assert_eq!(cycle_start(Date::new(2024, 3, 5), 31), Date::new(2024, 2, 29));
+        // January reaches back into the previous year.
+        assert_eq!(cycle_start(Date::new(2026, 1, 5), 15), Date::new(2025, 12, 15));
+        // Out-of-range days are clamped, never panic.
+        assert_eq!(cycle_start(Date::new(2026, 9, 13), 99), Date::new(2026, 8, 31));
+        assert_eq!(cycle_start(Date::new(2026, 9, 13), 0), Date::new(2026, 9, 1));
+    }
 
     #[test]
     fn rd_roundtrip_and_known_values() {

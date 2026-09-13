@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 155] = [
+pub static UI: [(&str, [&str; LANGS]); 160] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -54,7 +54,7 @@ pub static UI: [(&str, [&str; LANGS]); 155] = [
     ("chk.showVpn", ["Show when a VPN carries my traffic", "إظهار مرور البيانات عبر شبكة افتراضية", "Indiquer quand un VPN achemine le trafic", "Trafiği bir VPN taşıdığında göster", "جب وی پی این ٹریفک لے جائے تو دکھائیں", "Tampilkan saat VPN membawa lalu lintas"]),
     ("chk.stackPairs", ["Stack paired readouts on two lines", "عرض القياسات المزدوجة في سطرين", "Empiler les paires de mesures sur deux lignes", "İkili göstergeleri iki satırda göster", "جوڑا پیمائشیں دو سطروں میں دکھائیں", "Tumpuk pasangan bacaan dalam dua baris"]),
     ("chk.sunnahFast", ["Remind me about Sunnah fasting (eve before)", "تذكيري بصيام السنة (مساء اليوم السابق)", "Me rappeler le jeûne surérogatoire (la veille)", "Nafile orucu hatırlat (bir gece önce)", "نفلی روزے کی یاد دہانی (ایک رات پہلے)", "Ingatkan puasa sunah (malam sebelumnya)"]),
-    ("chk.sysMeters", ["Show CPU and memory", "إظهار المعالج والذاكرة", "Afficher le processeur et la mémoire", "İşlemci ve belleği göster", "سی پی یو اور میموری دکھائیں", "Tampilkan CPU dan memori"]),
+    ("chk.sysMeters", ["Show system meters", "إظهار مقاييس النظام", "Afficher les compteurs système", "Sistem göstergelerini göster", "سسٹم میٹرز دکھائیں", "Tampilkan meter sistem"]),
     ("chk.trackUsage", ["Track data usage", "تتبع استهلاك البيانات", "Suivre la consommation de données", "Veri kullanımını izle", "ڈیٹا استعمال ٹریک کریں", "Lacak penggunaan data"]),
     ("chk.use24", ["Use 24-hour clock", "نظام 24 ساعة", "Format 24 heures", "24 saat biçimi", "24 گھنٹے کا نظام", "Gunakan format 24 jam"]),
     ("chk.wideMeters", ["Reserve extra width for large values", "حجز عرض إضافي للقيم الكبيرة", "Réserver plus de largeur pour les grandes valeurs", "Büyük değerler için fazladan genişlik ayır", "بڑی اقدار کے لیے اضافی چوڑائی محفوظ کریں", "Sisakan lebar ekstra untuk nilai besar"]),
@@ -81,6 +81,7 @@ pub static UI: [(&str, [&str; LANGS]); 155] = [
     ("label.azanFile", ["Azan file:", "ملف الأذان:", "Fichier adhan :", "Ezan dosyası:", "اذان فائل:", "Berkas azan:"]),
     ("label.city", ["City (label):", "المدينة (تسمية):", "Ville (libellé) :", "Şehir (etiket):", "شہر (نام):", "Kota (label):"]),
     ("label.customFile", ["Custom file:", "ملف مخصص:", "Fichier perso :", "Özel dosya:", "حسب ضرورت فائل:", "Berkas khusus:"]),
+    ("label.cycleDay", ["Month starts on day", "الشهر يبدأ في يوم", "Le mois commence le", "Ay şu günde başlar", "مہینہ شروع ہونے کا دن", "Bulan dimulai pada tanggal"]),
     ("label.font", ["Font:", "الخط:", "Police :", "Yazı tipi:", "فونٹ:", "Font:"]),
     ("label.fontSize", ["Font size:", "حجم الخط:", "Taille de police :", "Yazı boyutu:", "فونٹ سائز:", "Ukuran font:"]),
     ("label.headLayout", ["Prayer display", "عرض الصلاة", "Affichage de la prière", "Namaz gösterimi", "نماز کی نمائش", "Tampilan salat"]),
@@ -96,6 +97,7 @@ pub static UI: [(&str, [&str; LANGS]); 155] = [
     ("label.pickMap", ["Pick on map:", "اختيار على الخريطة:", "Choisir sur la carte :", "Haritada seç:", "نقشے پر منتخب کریں:", "Pilih di peta:"]),
     ("label.pingHost", ["Ping host", "مضيف Ping", "Hôte ping", "Ping sunucusu", "پنگ ہوسٹ", "Host ping"]),
     ("label.sound", ["Sound:", "الصوت:", "Son :", "Ses:", "آواز:", "Suara:"]),
+    ("label.sysMetric", ["System meters", "مقاييس النظام", "Compteurs système", "Sistem göstergeleri", "سسٹم میٹرز", "Meter sistem"]),
     ("label.theme", ["Theme:", "السمة:", "Thème :", "Tema:", "تھیم:", "Tema:"]),
     ("label.tuneTimes", ["Fine-tune times (± min):", "ضبط الأوقات (± دقيقة):", "Ajuster les horaires (± min) :", "Vakitleri ince ayarla (± dk):", "اوقات کی باریک ترتیب (± منٹ):", "Sesuaikan waktu (± mnt):"]),
     ("label.usagePeriod", ["Data total", "إجمالي البيانات", "Total de données", "Veri toplamı", "ڈیٹا کا کل", "Total data"]),
@@ -111,6 +113,9 @@ pub static UI: [(&str, [&str; LANGS]); 155] = [
     ("menu.showTimes", ["Show times", "عرض الأوقات", "Afficher les horaires", "Vakitleri göster", "اوقات دکھائیں", "Tampilkan waktu"]),
     ("menu.startup", ["Start with Windows", "التشغيل مع ويندوز", "Démarrer avec Windows", "Windows ile başlat", "ونڈوز کے ساتھ شروع کریں", "Mulai bersama Windows"]),
     ("menu.stopSound", ["Stop sound", "إيقاف الصوت", "Arrêter le son", "Sesi durdur", "آواز بند کریں", "Hentikan suara"]),
+    ("metric.both", ["CPU and memory", "المعالج والذاكرة", "Processeur et mémoire", "İşlemci ve bellek", "سی پی یو اور میموری", "CPU dan memori"]),
+    ("metric.cpu", ["CPU only", "المعالج فقط", "Processeur seul", "Yalnızca işlemci", "صرف سی پی یو", "Hanya CPU"]),
+    ("metric.ram", ["Memory only", "الذاكرة فقط", "Mémoire seule", "Yalnızca bellek", "صرف میموری", "Hanya memori"]),
     ("monitor.primary", [" — Primary", " — رئيسية", " — Principal", " — Birincil", " — بنیادی", " — Utama"]),
     ("msg.azanFile", ["Pick an azan audio file, or set Azan to Off.", "اختر ملف أذان صوتيًا، أو اضبط الأذان على إيقاف.", "Choisissez un fichier audio d'adhan, ou désactivez l'adhan.", "Bir ezan ses dosyası seçin veya Ezan'ı kapatın.", "اذان کی آڈیو فائل منتخب کریں، یا اذان بند کریں۔", "Pilih berkas audio azan, atau matikan Azan."]),
     ("msg.detectCaption", ["Detect location", "كشف الموقع", "Détecter la position", "Konum algıla", "مقام کا پتہ لگائیں", "Deteksi lokasi"]),

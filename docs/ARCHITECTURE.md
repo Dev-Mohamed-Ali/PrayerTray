@@ -35,8 +35,8 @@ Config compatibility is a hard contract: `%APPDATA%\PrayerTray\config.json`, Pas
 sentinels preserved (`i32::MIN` popup position, `999.0` = system timezone). The file has since
 diverged in both directions: `NetInterfaceId`, `TrackWorkHours` and `CompactMeters` are dropped on
 save because those options are gone, and the Rust-only settings (`RotateMeters`, `WideMeters`,
-`StackPairs`, `HeadLayout`, `UsagePeriod`, `PillOrder`, `ShowSysMeters`, `ShowVpn`, and
-`MuteWhenBusy` when opted out) are written alongside the C# ones.
+`StackPairs`, `HeadLayout`, `UsagePeriod`, `UsageCycleDay`, `PillOrder`, `ShowSysMeters`,
+`SysMetric`, `ShowVpn`, `LockWidget`, and `MuteWhenBusy` when opted out) are written alongside the C# ones.
 `WideMeters` replaces C#'s `CompactMeters` rather than reusing it: the sense is inverted so the
 narrow tail is what an absent key means, and no stored `CompactMeters: false` can bring the wide
 one back. Unknown keys are ignored on load,

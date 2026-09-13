@@ -353,16 +353,21 @@ impl App {
                 "sys" if self.cfg.show_sys_meters => {
                     let cpu = sys_meters::format_cpu(self.sys.cpu_percent());
                     let ram = sys_meters::format_ram(sys_meters::memory_percent());
-                    if stack {
-                        segs.push((format!("{cpu}\n{ram}"), "CPU 100%\nRAM 100%".into()));
-                    } else {
-                        segs.push((cpu, "CPU 100%".into()));
-                        segs.push((ram, "RAM 100%".into()));
+                    match self.cfg.sys_metric.as_str() {
+                        "cpu" => segs.push((cpu, "CPU 100%".into())),
+                        "ram" => segs.push((ram, "RAM 100%".into())),
+                        _ if stack => {
+                            segs.push((format!("{cpu}\n{ram}"), "CPU 100%\nRAM 100%".into()));
+                        }
+                        _ => {
+                            segs.push((cpu, "CPU 100%".into()));
+                            segs.push((ram, "RAM 100%".into()));
+                        }
                     }
                 }
                 "usage" if self.cfg.track_data_usage && self.cfg.show_data_usage => {
                     let (dr, dt) = self.data_usage.today();
-                    let (mr, mt) = self.data_usage.month();
+                    let (mr, mt) = self.data_usage.cycle(self.cfg.usage_cycle_day);
                     let (day, month) = (data_usage::size(dr + dt), data_usage::size(mr + mt));
                     let one = if wide { "Σ 8.88 GB" } else { "Σ 888 MB" };
                     segs.push(match self.cfg.usage_period.as_str() {

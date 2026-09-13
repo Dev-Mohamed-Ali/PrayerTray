@@ -198,3 +198,22 @@ fn unknown_head_layout_and_period_fall_back() {
         assert_eq!(c.head_layout, id);
     }
 }
+
+#[test]
+fn sys_metric_and_cycle_day_are_clamped() {
+    let mut cfg: AppConfig =
+        serde_json::from_str(r#"{"SysMetric":"gpu","UsageCycleDay":99}"#).unwrap();
+    cfg.sanitize();
+    assert_eq!(cfg.sys_metric, "both");
+    assert_eq!(cfg.usage_cycle_day, 31);
+
+    let mut zero: AppConfig = serde_json::from_str(r#"{"UsageCycleDay":0}"#).unwrap();
+    zero.sanitize();
+    assert_eq!(zero.usage_cycle_day, 1);
+
+    for m in prayertray::config::SYS_METRICS {
+        let mut c = AppConfig { sys_metric: m.into(), ..AppConfig::default() };
+        c.sanitize();
+        assert_eq!(c.sys_metric, m);
+    }
+}

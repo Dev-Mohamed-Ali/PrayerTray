@@ -97,6 +97,8 @@ const ID_VPN: i32 = 288;
 const ID_STACK: i32 = 289;
 const ID_HEAD: i32 = 290;
 const ID_USAGEPERIOD: i32 = 291;
+const ID_SYSMETRIC: i32 = 292;
+const ID_CYCLEDAY: i32 = 293;
 const ID_SEGUP: i32 = 300; // +0..4, one per pill row
 const ID_SEGDN: i32 = 310;
 const SEG_W: i32 = 330;
@@ -136,7 +138,7 @@ const CARD_PAD: i32 = 16;
 const TITLE_H: i32 = 34;
 const CARD_Y: i32 = M;
 const ROW_H: i32 = 28;
-const CARD_H: i32 = CARD_PAD + TITLE_H + 12 * ROW_H + CARD_PAD; // 12 = tallest page (Taskbar pill)
+const CARD_H: i32 = CARD_PAD + TITLE_H + 14 * ROW_H + CARD_PAD; // 14 = tallest page (Taskbar pill)
 const LBL_X: i32 = CARD_X + CARD_PAD;
 const LABEL_W: i32 = 130;
 const CTRL_X: i32 = LBL_X + LABEL_W + 8;
@@ -535,6 +537,12 @@ impl Dialog {
         self.lbl_for(3, ID_PINGHOST, i18n::t("label.pingHost"), LBL_X, y, LABEL_W);
         self.edit_at(3, ID_PINGHOST, CTRL_X, y, 200);
         y += ROW_H;
+        self.lbl_for(3, ID_SYSMETRIC, i18n::t("label.sysMetric"), LBL_X, y, LABEL_W);
+        let sm = self.combo_at(3, ID_SYSMETRIC, CTRL_X, y, 200);
+        for k in ["metric.cpu", "metric.ram", "metric.both"] {
+            controls::combo_add(sm, i18n::t(k));
+        }
+        y += ROW_H;
         self.lbl(3, i18n::t("label.headLayout"), LBL_X, y, LABEL_W, false);
         let hd = self.combo_at(3, ID_HEAD, CTRL_X, y, 268);
         for k in ["head.full", "head.stacked", "head.nameCount", "head.countOnly"] {
@@ -549,11 +557,14 @@ impl Dialog {
         y += ROW_H;
         self.check_at(3, ID_TRACKUSAGE, i18n::t("chk.trackUsage"), LBL_X, y, 380);
         y += ROW_H;
-        self.lbl(3, i18n::t("label.usagePeriod"), LBL_X, y, LABEL_W, false);
+        self.lbl_for(3, ID_USAGEPERIOD, i18n::t("label.usagePeriod"), LBL_X, y, LABEL_W);
         let up = self.combo_at(3, ID_USAGEPERIOD, CTRL_X, y, 200);
         for k in ["period.today", "period.month", "period.both"] {
             controls::combo_add(up, i18n::t(k));
         }
+        y += ROW_H;
+        self.lbl_for(3, ID_CYCLEDAY, i18n::t("label.cycleDay"), LBL_X, y, LABEL_W);
+        self.edit_at(3, ID_CYCLEDAY, CTRL_X, y, 60);
 
         // --- Religious ---
         let mut y = Y0;
@@ -667,6 +678,9 @@ impl Dialog {
         controls::set_checked(self.item(ID_PING), cfg.show_ping);
         controls::set_text(self.item(ID_PINGHOST), &cfg.ping_host);
         controls::set_checked(self.item(ID_SYSMETERS), cfg.show_sys_meters);
+        let si = config::SYS_METRICS.iter().position(|m| *m == cfg.sys_metric).unwrap_or(2);
+        controls::combo_set(self.item(ID_SYSMETRIC), si as i32);
+        controls::set_text(self.item(ID_CYCLEDAY), &cfg.usage_cycle_day.to_string());
         controls::set_checked(self.item(ID_VPN), cfg.show_vpn);
         controls::set_checked(self.item(ID_ROTATE), cfg.rotate_meters);
         let hi = config::HEAD_LAYOUTS.iter().position(|h| *h == cfg.head_layout).unwrap_or(1);
@@ -763,6 +777,10 @@ impl Dialog {
         let ping_host = controls::get_text(self.item(ID_PINGHOST));
         c.ping_host = if ping_host.trim().is_empty() { "1.1.1.1".into() } else { ping_host.trim().to_string() };
         c.show_sys_meters = controls::checked(self.item(ID_SYSMETERS));
+        c.sys_metric = config::SYS_METRICS[controls::combo_sel(self.item(ID_SYSMETRIC)).clamp(0, 2) as usize].to_string();
+        if let Ok(d) = controls::get_text(self.item(ID_CYCLEDAY)).trim().parse::<i32>() {
+            c.usage_cycle_day = d.clamp(1, 31);
+        }
         c.show_vpn = controls::checked(self.item(ID_VPN));
         c.rotate_meters = controls::checked(self.item(ID_ROTATE));
         c.head_layout = config::HEAD_LAYOUTS[controls::combo_sel(self.item(ID_HEAD)).clamp(0, 3) as usize].to_string();
@@ -831,6 +849,11 @@ impl Dialog {
         controls::enable(self.item(ID_SHOWUSAGE), track);
         let sysm = controls::checked(self.item(ID_SYSMETERS));
         let any_meter = netspeed || ping || sysm || (track && show_usage);
+        controls::enable(self.item(ID_SYSMETRIC), sysm);
+        let period = controls::combo_sel(self.item(ID_USAGEPERIOD)).max(0) as usize;
+        let month_shown = track && show_usage && config::USAGE_PERIODS.get(period).copied() != Some("today");
+        controls::set_readonly(self.item(ID_CYCLEDAY), !month_shown);
+        controls::enable(self.item(ID_USAGEPERIOD), track && show_usage);
         let last = config::PILL_SEGMENTS.len() as i32 - 1;
         for i in 0..=last {
             controls::enable(self.item(ID_SEGUP + i), i > 0);
@@ -842,6 +865,9 @@ impl Dialog {
 
         let states = [
             (ID_PINGHOST, ping),
+            (ID_SYSMETRIC, sysm),
+            (ID_USAGEPERIOD, track && show_usage),
+            (ID_CYCLEDAY, month_shown),
             (ID_HIJRIADJ, show_hijri),
             (ID_REMMINS, rem),
             (ID_REMSOUNDCB, snd),
@@ -1143,6 +1169,10 @@ impl Dialog {
                     let v = controls::checked(self.item(ID_ROTATE));
                     self.live(|c| c.rotate_meters = v);
                 }
+                ID_SYSMETRIC => {
+                    let i = controls::combo_sel(self.item(ID_SYSMETRIC)).clamp(0, 2) as usize;
+                    self.live(|c| c.sys_metric = config::SYS_METRICS[i].to_string());
+                }
                 ID_HEAD => {
                     let i = controls::combo_sel(self.item(ID_HEAD)).clamp(0, 3) as usize;
                     self.live(|c| c.head_layout = config::HEAD_LAYOUTS[i].to_string());
@@ -1150,6 +1180,7 @@ impl Dialog {
                 ID_USAGEPERIOD => {
                     let i = controls::combo_sel(self.item(ID_USAGEPERIOD)).clamp(0, 2) as usize;
                     self.live(|c| c.usage_period = config::USAGE_PERIODS[i].to_string());
+                    self.sync_enabled();
                 }
                 ID_STACK => {
                     let v = controls::checked(self.item(ID_STACK));
@@ -1230,6 +1261,11 @@ impl Dialog {
                     let h = controls::get_text(self.item(ID_PINGHOST));
                     let host = if h.trim().is_empty() { "1.1.1.1".to_string() } else { h.trim().to_string() };
                     self.live(|c| c.ping_host = host);
+                }
+                ID_CYCLEDAY => {
+                    if let Some(v) = self.get_num(ID_CYCLEDAY, 1, 31) {
+                        self.live(|c| c.usage_cycle_day = v);
+                    }
                 }
                 ID_HIJRIADJ => {
                     if let Some(v) = self.get_num(ID_HIJRIADJ, -2, 2) {

@@ -3,7 +3,8 @@
 
 use crate::config::AppConfig;
 use crate::native::net::IfRow;
-use crate::native::time::{day_key_offset, tick_count64, today_key};
+use crate::datetime;
+use crate::native::time::{day_key_offset, now_local, tick_count64, today_key};
 use crate::services::net_speed;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
@@ -87,12 +88,13 @@ impl DataUsage {
         self.days.iter().rev().map(|(k, d)| (k.clone(), d.rx, d.tx)).collect()
     }
 
-    /// Running total for the current calendar month (retention keeps 90 days, so it is complete).
-    pub fn month(&self) -> (u64, u64) {
-        let m = &today_key()[..7];
+    /// Running total since the cycle most recently started. Retention keeps 90 days, so any
+    /// cycle length the settings allow is complete.
+    pub fn cycle(&self, cycle_day: i32) -> (u64, u64) {
+        let start = datetime::cycle_start(now_local().0, cycle_day.clamp(1, 31) as u32);
+        let from = format!("{:04}-{:02}-{:02}", start.year, start.month, start.day);
         self.days
-            .iter()
-            .filter(|(k, _)| k.starts_with(m))
+            .range(from..)
             .fold((0, 0), |(r, t), (_, d)| (r + d.rx, t + d.tx))
     }
 

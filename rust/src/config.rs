@@ -10,6 +10,7 @@ fn is_true(b: &bool) -> bool {
 }
 
 pub const PILL_SEGMENTS: [&str; 5] = ["speed", "ping", "sys", "vpn", "usage"];
+pub const SYS_METRICS: [&str; 3] = ["cpu", "ram", "both"];
 pub const HEAD_LAYOUTS: [&str; 4] = ["full", "stacked", "nameCount", "countOnly"];
 pub const USAGE_PERIODS: [&str; 3] = ["today", "month", "both"];
 
@@ -47,6 +48,7 @@ pub struct AppConfig {
     pub show_ping: bool,
     pub ping_host: String,
     pub show_sys_meters: bool,
+    pub sys_metric: String, // cpu | ram | both
     pub show_vpn: bool,
     pub rotate_meters: bool,
     pub wide_meters: bool,
@@ -55,6 +57,7 @@ pub struct AppConfig {
     pub usage_period: String, // today | month | both
     pub pill_order: Vec<String>,
     pub lock_widget: bool,
+    pub usage_cycle_day: i32,
     pub track_data_usage: bool,
     pub show_data_usage: bool,
     pub timezone_hours: f64,
@@ -106,6 +109,7 @@ impl Default for AppConfig {
             show_ping: false,
             ping_host: "1.1.1.1".into(),
             show_sys_meters: false,
+            sys_metric: "both".into(),
             show_vpn: false,
             rotate_meters: true,
             wide_meters: false,
@@ -114,6 +118,7 @@ impl Default for AppConfig {
             usage_period: "today".into(),
             pill_order: PILL_SEGMENTS.iter().map(|s| s.to_string()).collect(),
             lock_widget: false,
+            usage_cycle_day: 1,
             track_data_usage: false,
             show_data_usage: false,
             timezone_hours: TZ_SYSTEM,
@@ -174,6 +179,10 @@ impl AppConfig {
         if !USAGE_PERIODS.contains(&self.usage_period.as_str()) {
             self.usage_period = "today".into();
         }
+        if !SYS_METRICS.contains(&self.sys_metric.as_str()) {
+            self.sys_metric = "both".into();
+        }
+        self.usage_cycle_day = self.usage_cycle_day.clamp(1, 31);
         // An imported order may be short, duplicated or unknown; every segment must appear once.
         let mut order: Vec<String> = Vec::with_capacity(PILL_SEGMENTS.len());
         for s in self.pill_order.iter() {
