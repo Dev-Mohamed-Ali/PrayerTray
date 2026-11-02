@@ -514,8 +514,6 @@ impl Dialog {
         y += ROW_H;
         self.check_at(2, ID_H24, i18n::t("chk.use24"), LBL_X, y, 380);
         y += ROW_H;
-        self.check_at(2, ID_SUNRISE, i18n::t("chk.countSunrise"), LBL_X, y, 380);
-        y += ROW_H;
         self.check_at(2, ID_HIDEFS, i18n::t("chk.hideFs"), LBL_X, y, 380);
 
         // --- Taskbar pill ---
@@ -581,6 +579,8 @@ impl Dialog {
         self.check_at(4, ID_SUNNAH, i18n::t("chk.sunnahFast"), LBL_X, y, 380);
         y += ROW_H;
         self.check_at(4, ID_FRIDAY, i18n::t("chk.fridayReminder"), LBL_X, y, 380);
+        y += ROW_H;
+        self.check_at(4, ID_SUNRISE, i18n::t("chk.countSunrise"), LBL_X, y, 380);
 
         // --- Notifications ---
         let mut y = Y0;
