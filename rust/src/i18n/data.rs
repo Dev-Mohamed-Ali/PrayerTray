@@ -3,7 +3,7 @@
 
 pub const LANGS: usize = 6;
 
-pub static UI: [(&str, [&str; LANGS]); 160] = [
+pub static UI: [(&str, [&str; LANGS]); 161] = [
     ("adhan.madinah", ["Madinah", "المدينة", "Médine", "Medine", "مدینہ", "Madinah"]),
     ("adhan.makkah", ["Makkah", "مكة", "La Mecque", "Mekke", "مکہ", "Makkah"]),
     ("app.name", ["Prayer Tray", "أوقات الصلاة", "Heures de Prière", "Namaz Vakitleri", "نماز کے اوقات", "Waktu Salat"]),
@@ -39,6 +39,7 @@ pub static UI: [(&str, [&str; LANGS]); 160] = [
     ("card.notifications", ["Notifications", "التنبيهات", "Notifications", "Bildirimler", "اطلاعات", "Notifikasi"]),
     ("card.pill", ["Taskbar pill", "شريط المهام", "Pastille", "Görev çubuğu", "ٹاسک بار پٹی", "Pil bilah tugas"]),
     ("card.religious", ["Religious", "ديني", "Religieux", "Dini", "دینی", "Keagamaan"]),
+    ("chk.countSunrise", ["Count down to Sunrise", "العد التنازلي حتى الشروق", "Compte à rebours jusqu'au lever du soleil", "Güneş doğuşuna geri sayım", "طلوعِ آفتاب تک الٹی گنتی", "Hitung mundur ke terbit"]),
     ("chk.fridayReminder", ["Friday: Jumu'ah & Al-Kahf reminder", "الجمعة: تذكير الجمعة وسورة الكهف", "Vendredi : rappel Joumou'a et Al-Kahf", "Cuma: Cuma ve Kehf hatırlatıcısı", "جمعہ: جمعہ اور الکہف یاد دہانی", "Jumat: pengingat Jumat & Al-Kahf"]),
     ("chk.hideFs", ["Hide over fullscreen apps", "إخفاء فوق تطبيقات ملء الشاشة", "Masquer en plein écran", "Tam ekranda gizle", "فل اسکرین پر چھپائیں", "Sembunyikan saat layar penuh"]),
     ("chk.muteBusy", ["Silence sound when I'm busy (calls, full screen)", "كتم الصوت عند الانشغال (مكالمات، ملء الشاشة)", "Couper le son si occupé (appels, plein écran)", "Meşgulken sesi kapat (arama, tam ekran)", "مصروفیت میں آواز خاموش کریں (کال، فل اسکرین)", "Bisukan suara saat sibuk (panggilan, layar penuh)"]),

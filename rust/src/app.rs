@@ -464,7 +464,7 @@ impl App {
         let now = abs_now();
         let today = self.today();
         for key in ORDER {
-            if key == "sunrise" {
+            if key == "sunrise" && !self.cfg.count_to_sunrise {
                 continue;
             }
             let Some(ts) = self.time_of(key) else { continue };
@@ -1136,6 +1136,7 @@ impl SettingsHost for App {
         self.recompute();
         self.render_tick(); // display only — never fire azan/balloon from a settings change
         if let Some(w) = &mut self.widget {
+            w.rerender(); // set_data skips unchanged text; theme/font/layout may still have changed
             w.preview_reposition();
         }
     }

@@ -38,6 +38,7 @@ pub struct AppConfig {
     pub maghrib_adjust: i32,
     pub isha_adjust: i32,
     pub use24_hour: bool,
+    pub count_to_sunrise: bool,
     pub widget_anchor: String, // Left | Right
     pub widget_offset: i32,
     pub theme: String, // Auto | Dark | Light | Midnight | Slate | Warm
@@ -100,6 +101,7 @@ impl Default for AppConfig {
             maghrib_adjust: 0,
             isha_adjust: 0,
             use24_hour: false,
+            count_to_sunrise: false,
             widget_anchor: "Right".into(),
             widget_offset: 12,
             theme: "Auto".into(),

@@ -123,6 +123,7 @@ const ID_AZANBROWSE: i32 = 271;
 const ID_AZANTEST: i32 = 272;
 const ID_AZANSTOP: i32 = 273;
 const ID_MUTEBUSY: i32 = 274;
+const ID_SUNRISE: i32 = 275;
 
 const BN_CLICKED: u32 = 0;
 const CBN_SELCHANGE: u32 = 1;
@@ -513,6 +514,8 @@ impl Dialog {
         y += ROW_H;
         self.check_at(2, ID_H24, i18n::t("chk.use24"), LBL_X, y, 380);
         y += ROW_H;
+        self.check_at(2, ID_SUNRISE, i18n::t("chk.countSunrise"), LBL_X, y, 380);
+        y += ROW_H;
         self.check_at(2, ID_HIDEFS, i18n::t("chk.hideFs"), LBL_X, y, 380);
 
         // --- Taskbar pill ---
@@ -673,6 +676,7 @@ impl Dialog {
             .unwrap_or(0);
         controls::combo_set(self.item(ID_MONITOR), mi as i32);
         controls::set_checked(self.item(ID_H24), cfg.use24_hour);
+        controls::set_checked(self.item(ID_SUNRISE), cfg.count_to_sunrise);
         controls::set_checked(self.item(ID_HIDEFS), cfg.hide_on_fullscreen);
         controls::set_checked(self.item(ID_NETSPEED), cfg.show_net_speed);
         controls::set_checked(self.item(ID_PING), cfg.show_ping);
@@ -771,6 +775,7 @@ impl Dialog {
             c.widget_offset = off.clamp(0, 2000);
         }
         c.use24_hour = controls::checked(self.item(ID_H24));
+        c.count_to_sunrise = controls::checked(self.item(ID_SUNRISE));
         c.hide_on_fullscreen = controls::checked(self.item(ID_HIDEFS));
         c.show_net_speed = controls::checked(self.item(ID_NETSPEED));
         c.show_ping = controls::checked(self.item(ID_PING));
@@ -1125,6 +1130,10 @@ impl Dialog {
                 ID_H24 => {
                     let v = controls::checked(self.item(ID_H24));
                     self.live(|c| c.use24_hour = v);
+                }
+                ID_SUNRISE => {
+                    let v = controls::checked(self.item(ID_SUNRISE));
+                    self.live(|c| c.count_to_sunrise = v);
                 }
                 ID_HIDEFS => {
                     let v = controls::checked(self.item(ID_HIDEFS));

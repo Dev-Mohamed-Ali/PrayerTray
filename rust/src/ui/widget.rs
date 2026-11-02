@@ -297,6 +297,9 @@ impl Widget {
 
     /// `urgency` is 0.0 with the window wide open and 1.0 as it closes; it tints the countdown.
     pub fn set_data(&mut self, name: &str, time: &str, countdown: &str, urgency: f32) {
+        if self.name == name && self.time == time && self.count == countdown && self.urgency == urgency {
+            return;
+        }
         self.name = name.into();
         self.time = time.into();
         self.count = countdown.into();
